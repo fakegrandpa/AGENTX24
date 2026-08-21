@@ -1,0 +1,77 @@
+# ==============================================================================
+# ⚡ AGENTX24 — Stack-Agnostic Hackathon .gitignore
+# Protects secrets, dependency folders, build output, caches, and system junk
+# ==============================================================================
+
+# --- Environment Variables & Secrets (P5 Secret Hygiene) ---
+.env
+.env.*
+*.env
+*.local
+!*.example
+!*.sample
+!*.template
+
+# --- JavaScript / TypeScript / Node.js ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+.npm/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Build & Distribution Artifacts ---
+dist/
+build/
+out/
+target/
+bin/
+obj/
+.next/
+.nuxt/
+.svelte-kit/
+.astro/
+.cache/
+.parcel-cache/
+.turbo/
+
+# --- Logs & Runtime Data ---
+logs/
+*.log
+*.sqlite
+*.sqlite3
+*.db
+
+# --- Operating System & Editor Metadata ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.swp
+*.swo
+*~
