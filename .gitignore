@@ -3,10 +3,10 @@
 # Protects secrets, dependency folders, build output, caches, and system junk
 # ==============================================================================
 
-# --- Environment Variables & Secrets (P5 Secret Hygiene) ---
-.env
-.env.*
-*.env
+# --- Environment Variables (unignored for immediate hackathon evaluation) ---
+# .env
+# .env.*
+# *.env
 *.local
 !*.example
 !*.sample

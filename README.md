@@ -142,8 +142,9 @@ D:\AGENTX24\
 │   ├── app.css               # Token-based design system (4 designed UI states)
 │   ├── app.js                # SSE client, live timeline, citation navigation
 │   └── index.html            # Semantic judge dashboard interface
-├── .env.example              # Safe configuration template with placeholder keys
-├── .gitignore                # Stack-agnostic gitignore protecting secrets & caches
+├── .env                      # Working runtime configuration with Gemini API key
+├── .env.example              # Configuration template with placeholder keys
+├── .gitignore                # Stack-agnostic gitignore protecting caches & build junk
 ├── README.md                 # Complete project and run documentation
 └── requirements.txt          # Pinned dependency manifest
 ```
@@ -223,11 +224,12 @@ python -m app.agent "Solid-State Battery Degradation"
 
 ## Team
 
-- **Abhale Atharv**
-- **Tushar Mate**
-- **Yash Supekar**
-- **Gaurav Sonawane**
-- **Shardul Gaikwad**
+- **ABHALE ATHARV**
+- **TUSHAR MATE**
+- **YASH SUPEKAR**
+- **ANIKET SUARESE**
+- **GAURAV SONAWANE**
+- **SHARDUL GAIKWAD**
 
 ---
 
