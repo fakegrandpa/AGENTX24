@@ -1,105 +1,162 @@
-// AGENTX24 Autonomous Investigation Client Application
+/* ==========================================================================
+   AGENTX24 — Autonomous Research Intelligence · client
+   Renders ONLY what the backend reports. No progress, reason, evidence or URL
+   is ever invented here: every value comes from a TelemetryEvent or the Run JSON.
+   ========================================================================== */
 
-let currentEventSource = null;
-let timerInterval = null;
-let investigationStartTime = 0;
-let knownEvidenceIds = new Set();
+const VISIBLE_NODE_CAP = 14;
+const SIGNIFICANCE = { high: "High", important: "Medium", emerging: "Low" };
+const SIGNIFICANCE_CLASS = { high: "high", important: "medium", emerging: "low" };
+
+const state = {
+  runId: null,
+  source: null,
+  clock: null,
+  startedAt: 0,
+  events: [],
+  seenEvidence: new Set(),
+  toolCalls: 0,
+  evidence: 0,
+  showEarlier: false,
+};
+
+const $ = (id) => document.getElementById(id);
 
 document.addEventListener("DOMContentLoaded", () => {
-  initHealthCheck();
-  initFormListeners();
-  initPresetButtons();
+  loadHealth();
+  wireForm();
+  wireExamples();
+  wireNavigation();
 });
 
-// 1. Initial Health Check
-async function initHealthCheck() {
-  const healthStatusEl = document.getElementById("health-status-text");
-  const toolsStatusEl = document.getElementById("tools-status-text");
+/* ------------------------------------------------------------------ health */
+
+async function loadHealth() {
+  const dot = $("status-dot");
+  const model = $("status-model");
+  const sources = $("status-sources");
+  const arrivalTools = $("arrival-tools");
 
   try {
     const res = await fetch("/api/health");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
 
-    if (data.gemini_ready) {
-      healthStatusEl.textContent = `Model: ${data.gemini_model} (Active)`;
-      healthStatusEl.style.color = "#10B981";
-    } else {
-      healthStatusEl.textContent = `Model: ${data.gemini_status_message}`;
-      healthStatusEl.style.color = "#D97706";
-    }
+    const tools = data.advertised_tools || [];
+    dot.classList.add(data.gemini_ready ? "ok" : "warn");
+    model.textContent = data.gemini_ready ? data.gemini_model : "model unconfigured";
+    sources.textContent = `${tools.length} sources online`;
+    sources.title = tools.join(", ");
+    arrivalTools.textContent = tools.join("  ·  ") || "none";
 
-    if (data.advertised_tools && data.advertised_tools.length > 0) {
-      toolsStatusEl.textContent = `Active Tools: ${data.advertised_tools.join(", ")}`;
+    if (!data.gemini_ready) {
+      showFieldError(data.gemini_status_message || "The reasoning model is not configured.");
     }
   } catch (err) {
-    healthStatusEl.textContent = "Server health check failed";
-    healthStatusEl.style.color = "#EF4444";
+    dot.classList.add("down");
+    model.textContent = "backend unreachable";
+    sources.textContent = "";
+    arrivalTools.textContent = "unavailable";
   }
 }
 
-// 2. Preset suggestions buttons
-function initPresetButtons() {
-  const input = document.getElementById("target-input");
-  document.querySelectorAll(".preset-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      input.value = btn.getAttribute("data-query");
+/* -------------------------------------------------------------- navigation */
+
+function showScreen(id) {
+  ["screen-arrival", "screen-run", "screen-report", "screen-error"].forEach((s) => {
+    $(s).hidden = s !== id;
+  });
+  window.scrollTo({ top: 0, behavior: "instant" in window ? "instant" : "auto" });
+}
+
+function wireNavigation() {
+  const reset = () => {
+    stopStream();
+    $("target-input").value = "";
+    clearFieldError();
+    showScreen("screen-arrival");
+    $("target-input").focus();
+  };
+  $("btn-new-run").addEventListener("click", reset);
+  $("btn-restart").addEventListener("click", reset);
+  $("btn-retry").addEventListener("click", reset);
+
+  $("trace-toggle").addEventListener("click", () => {
+    const runScreen = $("screen-run");
+    const opening = runScreen.hidden;
+    runScreen.hidden = !opening;
+    $("trace-toggle").setAttribute("aria-expanded", String(opening));
+    $("trace-toggle").lastElementChild.textContent = opening ? "Hide decision trace" : "Show decision trace";
+    if (opening) runScreen.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
+/* -------------------------------------------------------------- input form */
+
+function wireExamples() {
+  $("examples").querySelectorAll(".example-chip").forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const input = $("target-input");
+      input.value = chip.dataset.q;
+      clearFieldError();
       input.focus();
     });
   });
 }
 
-// 3. Form Submit & Investigation Flow
-function initFormListeners() {
-  const form = document.getElementById("investigate-form");
-  const input = document.getElementById("target-input");
-  const btnRestart = document.getElementById("btn-restart");
-  const btnNewInv = document.getElementById("btn-new-investigation");
-  const btnErrorRetry = document.getElementById("btn-error-retry");
+function showFieldError(message) {
+  $("input-error").textContent = message;
+  $("input-row").classList.add("invalid");
+}
 
-  form.addEventListener("submit", async (e) => {
+function clearFieldError() {
+  $("input-error").textContent = "";
+  $("input-row").classList.remove("invalid");
+}
+
+function wireForm() {
+  const form = $("investigate-form");
+  const input = $("target-input");
+
+  input.addEventListener("input", clearFieldError);
+
+  form.addEventListener("submit", (e) => {
     e.preventDefault();
     const query = input.value.trim();
-    if (!query) return;
-
+    if (query.length < 3) {
+      showFieldError("Enter at least 3 characters describing what to investigate.");
+      input.focus();
+      return;
+    }
+    clearFieldError();
     startInvestigation(query);
   });
-
-  const resetToArrival = () => {
-    stopInvestigation();
-    showScreen("screen-arrival");
-    input.value = "";
-    input.focus();
-  };
-
-  btnRestart.addEventListener("click", resetToArrival);
-  btnNewInv.addEventListener("click", resetToArrival);
-  btnErrorRetry.addEventListener("click", resetToArrival);
 }
 
-function showScreen(screenId) {
-  const screens = ["screen-arrival", "screen-investigating", "screen-report", "screen-error"];
-  screens.forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = id === screenId ? "block" : "none";
-  });
-}
+/* ---------------------------------------------------------------- run flow */
 
 async function startInvestigation(query) {
-  showScreen("screen-investigating");
-  document.getElementById("live-target-name").textContent = query;
+  state.events = [];
+  state.seenEvidence = new Set();
+  state.toolCalls = 0;
+  state.evidence = 0;
+  state.showEarlier = false;
+  state.startedAt = Date.now();
 
-  // Reset live state
-  knownEvidenceIds.clear();
-  document.getElementById("timeline-list").innerHTML = "";
-  document.getElementById("evidence-list").innerHTML = "";
-  document.getElementById("evidence-count").textContent = "0";
+  $("run-target").textContent = query;
+  $("timeline").innerHTML = "";
+  $("evidence-list").innerHTML = "";
+  $("evidence-count").textContent = "0";
+  $("evidence-placeholder").hidden = false;
+  $("timeline-count").textContent = "0 steps";
+  $("metric-calls").textContent = "0 tool calls";
+  $("metric-sources").textContent = "0 sources";
+  $("earlier-toggle").hidden = true;
+  $("trace-toggle").setAttribute("aria-expanded", "false");
+  $("trace-toggle").lastElementChild.textContent = "Show decision trace";
 
-  // Start timer
-  investigationStartTime = Date.now();
-  updateTimerDisplay();
-  clearInterval(timerInterval);
-  timerInterval = setInterval(updateTimerDisplay, 1000);
+  showScreen("screen-run");
+  startClock();
 
   try {
     const res = await fetch("/api/investigate", {
@@ -107,406 +164,514 @@ async function startInvestigation(query) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
     });
-
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to initiate run" }));
-      throw new Error(err.detail || "Server rejected investigation request");
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail || `Server rejected the request (HTTP ${res.status}).`);
     }
-
     const data = await res.json();
-    const runId = data.run_id;
-
-    // Connect SSE telemetry stream
-    connectStream(runId, query);
+    state.runId = data.run_id;
+    openStream(data.run_id);
   } catch (err) {
-    showError(err.message, "Ensure Python backend is running on 127.0.0.1:8000.");
+    stopClock();
+    showError(err.message, "Confirm the backend is running on 127.0.0.1:8000.");
   }
 }
 
-function updateTimerDisplay() {
-  const elapsedSec = Math.floor((Date.now() - investigationStartTime) / 1000);
-  const mins = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
-  const secs = String(elapsedSec % 60).padStart(2, "0");
-  const timerEl = document.getElementById("live-timer");
-  if (timerEl) timerEl.textContent = `${mins}:${secs}`;
+function startClock() {
+  tickClock();
+  clearInterval(state.clock);
+  state.clock = setInterval(tickClock, 1000);
 }
 
-function stopInvestigation() {
-  if (currentEventSource) {
-    currentEventSource.close();
-    currentEventSource = null;
-  }
-  clearInterval(timerInterval);
+function tickClock() {
+  const s = Math.floor((Date.now() - state.startedAt) / 1000);
+  const mm = String(Math.floor(s / 60)).padStart(2, "0");
+  const ss = String(s % 60).padStart(2, "0");
+  $("metric-clock").textContent = `${mm}:${ss}`;
 }
 
-// 4. SSE Stream Listener
-function connectStream(runId, targetQuery) {
-  if (currentEventSource) {
-    currentEventSource.close();
+function stopClock() { clearInterval(state.clock); }
+
+function stopStream() {
+  if (state.source) {
+    state.source.close();
+    state.source = null;
   }
+  stopClock();
+}
 
-  currentEventSource = new EventSource(`/api/stream/${runId}`);
+function openStream(runId) {
+  if (state.source) state.source.close();
+  state.source = new EventSource(`/api/stream/${runId}`);
 
-  currentEventSource.onmessage = async (event) => {
+  state.source.onmessage = async (msg) => {
+    if (msg.data.includes('"stream_end"')) {
+      stopStream();
+      await finalize(runId);
+      return;
+    }
     try {
-      const rawData = event.data;
-      if (rawData.includes('"stream_end"')) {
-        currentEventSource.close();
-        // Fetch complete run record and show report
-        await finalizeRunReport(runId);
-        return;
+      const ev = JSON.parse(msg.data);
+      state.events.push(ev);
+      renderTimeline();
+      if (ev.data && typeof ev.data.total_evidence === "number") {
+        // fall through to the authoritative refresh below
       }
-
-      const telemetryEvent = JSON.parse(rawData);
-      handleTelemetryEvent(telemetryEvent, runId);
+      if (ev.kind === "tool_result" || ev.kind === "note") refreshEvidence(runId);
     } catch (err) {
-      console.error("Telemetry parse error:", err);
+      console.error("telemetry parse failed", err);
     }
   };
 
-  currentEventSource.onerror = async () => {
-    // If stream disconnected, check if run completed
-    if (currentEventSource) currentEventSource.close();
+  // A dropped stream is not automatically a failure: ask the server what happened.
+  state.source.onerror = async () => {
+    stopStream();
     try {
       const res = await fetch(`/api/run/${runId}`);
-      if (res.ok) {
-        const run = await res.json();
-        if (run.status === "done" && run.report) {
-          renderReport(run);
-          return;
-        } else if (run.status === "error") {
-          showError(run.limitations[0] || "Investigation failed", "Check GEMINI_API_KEY configuration.");
-          return;
-        }
-      }
-    } catch (e) {}
+      if (!res.ok) throw new Error("run unavailable");
+      const run = await res.json();
+      if (run.status === "done") renderReport(run);
+      else if (run.status === "error") showError(run.limitations[0] || "The investigation failed.", "See the server log for detail.");
+    } catch (err) {
+      showError("Lost connection to the investigation stream.", "The backend may have stopped.");
+    }
   };
 }
 
-function handleTelemetryEvent(ev, runId) {
-  const timeline = document.getElementById("timeline-list");
-
-  // Mark previous items as done
-  document.querySelectorAll(".timeline-item.active").forEach((el) => {
-    el.classList.remove("active");
-    el.classList.add("done");
-  });
-
-  const isProblem = ev.kind === "error" || ev.phase === "Error encountered" || ev.phase === "Source unavailable";
-
-  // Create new timeline item
-  const item = document.createElement("div");
-  item.className = isProblem ? "timeline-item active warn" : "timeline-item active";
-
-  const dot = document.createElement("div");
-  dot.className = "phase-dot";
-
-  const content = document.createElement("div");
-  content.className = "timeline-content";
-
-  const label = document.createElement("div");
-  label.className = "phase-label";
-  label.textContent = ev.phase || ev.text;
-
-  content.appendChild(label);
-
-  if (ev.detail) {
-    const detail = document.createElement("div");
-    detail.className = "phase-detail";
-    detail.textContent = ev.detail;
-    content.appendChild(detail);
+async function finalize(runId) {
+  try {
+    const res = await fetch(`/api/run/${runId}`);
+    if (!res.ok) throw new Error("Could not load the completed run.");
+    const run = await res.json();
+    if (run.status === "error") {
+      showError(run.limitations[0] || "The investigation failed.", "No verifiable evidence was produced.");
+      return;
+    }
+    renderReport(run);
+  } catch (err) {
+    showError(err.message, "Reload the page and try again.");
   }
-
-  item.appendChild(dot);
-  item.appendChild(content);
-  timeline.appendChild(item);
-
-  // Cap timeline list to ~12 entries with auto-scroll
-  while (timeline.children.length > 12) {
-    timeline.removeChild(timeline.firstChild);
-  }
-
-  // Check for newly gathered evidence
-  if (ev.kind === "tool_result") {
-    fetchEvidenceUpdates(runId);
-  }
-
-  // A recoverable problem stays in the timeline. Whether the run actually failed
-  // is decided from the final run status, so partial evidence is never discarded.
 }
 
-async function fetchEvidenceUpdates(runId) {
+/* ------------------------------------------------------- timeline renderer */
+
+function nodeVariant(ev) {
+  if (ev.kind === "error") return "is-error";
+  if (ev.kind === "tool_selected") return "is-tool";
+  if (ev.kind === "tool_result") return "is-result";
+  if (ev.phase === "Identifying knowledge gaps") return "is-gap";
+  if (ev.phase === "Source unavailable" || ev.phase === "No results for that angle") return "is-warn";
+  return "";
+}
+
+function nodeTitle(ev) {
+  switch (ev.kind) {
+    case "objective": return "Investigation defined";
+    case "tool_selected": return null;           // rendered with a tool chip
+    case "tool_result": return "Analyzed returned evidence";
+    default: return ev.phase;
+  }
+}
+
+function buildNode(ev, isLast) {
+  const li = document.createElement("li");
+  li.className = `node ${nodeVariant(ev)}`.trim();
+  if (isLast) li.classList.add("is-active");
+
+  const step = document.createElement("div");
+  step.className = "node-step";
+  step.textContent = String(ev.seq).padStart(2, "0");
+
+  const rail = document.createElement("div");
+  rail.className = "node-rail";
+  const dot = document.createElement("span");
+  dot.className = "node-dot";
+  rail.appendChild(dot);
+
+  const body = document.createElement("div");
+
+  const title = document.createElement("div");
+  title.className = "node-title";
+  const d = ev.data || {};
+
+  if (ev.kind === "tool_selected") {
+    title.append(document.createTextNode("Selected "));
+    const tool = document.createElement("span");
+    tool.className = "node-tool";
+    tool.textContent = d.tool || "tool";
+    title.appendChild(tool);
+  } else {
+    title.textContent = nodeTitle(ev);
+  }
+  body.appendChild(title);
+
+  // Machine facts, straight from telemetry
+  if (ev.kind === "tool_selected") {
+    const kv = document.createElement("div");
+    kv.className = "kv";
+    if (d.query) kv.append(kvKey("Query"), kvValue(d.query, "kv-query"));
+    if (d.reason) kv.append(kvKey("Reason"), kvValue(d.reason, "kv-reason"));
+    if (kv.childElementCount) body.appendChild(kv);
+  } else if (ev.phase === "Identifying knowledge gaps" && d.reason) {
+    const kv = document.createElement("div");
+    kv.className = "kv";
+    kv.append(kvKey("Gap"), kvValue(d.reason, "kv-reason"));
+    body.appendChild(kv);
+  } else if (ev.detail) {
+    const note = document.createElement("div");
+    note.className = "node-note";
+    note.textContent = ev.detail;
+    body.appendChild(note);
+  }
+
+  if (ev.kind === "tool_result" && typeof d.new_evidence === "number") {
+    const note = document.createElement("div");
+    note.className = "node-note";
+    note.textContent = `${d.new_evidence} new · ${d.total_evidence ?? "?"} total sources`;
+    body.appendChild(note);
+  }
+
+  li.append(step, rail, body);
+  return li;
+}
+
+function kvKey(label) {
+  const el = document.createElement("div");
+  el.className = "kv-key";
+  el.textContent = label;
+  return el;
+}
+
+function kvValue(text, cls) {
+  const el = document.createElement("div");
+  el.className = cls;
+  el.textContent = text;
+  return el;
+}
+
+function renderTimeline() {
+  const list = $("timeline");
+  const toggle = $("earlier-toggle");
+  const events = state.events;
+
+  $("timeline-count").textContent = `${events.length} step${events.length === 1 ? "" : "s"}`;
+
+  const hiddenCount = Math.max(0, events.length - VISIBLE_NODE_CAP);
+  const shown = state.showEarlier || hiddenCount === 0 ? events : events.slice(hiddenCount);
+
+  if (hiddenCount > 0) {
+    toggle.hidden = false;
+    toggle.textContent = state.showEarlier
+      ? `Hide earlier steps (${hiddenCount})`
+      : `Show earlier steps (${hiddenCount})`;
+    toggle.onclick = () => { state.showEarlier = !state.showEarlier; renderTimeline(); };
+  } else {
+    toggle.hidden = true;
+  }
+
+  list.innerHTML = "";
+  shown.forEach((ev, i) => list.appendChild(buildNode(ev, i === shown.length - 1)));
+
+  // Live counters, derived from real events only
+  state.toolCalls = events.filter((e) => e.kind === "tool_selected").length;
+  $("metric-calls").textContent = `${state.toolCalls} tool call${state.toolCalls === 1 ? "" : "s"}`;
+}
+
+/* ------------------------------------------------------- evidence renderer */
+
+async function refreshEvidence(runId) {
   try {
     const res = await fetch(`/api/run/${runId}`);
     if (!res.ok) return;
     const run = await res.json();
+    const list = $("evidence-list");
 
-    const evidenceList = document.getElementById("evidence-list");
-    const countBadge = document.getElementById("evidence-count");
+    (run.evidence || []).forEach((ev) => {
+      if (state.seenEvidence.has(ev.id)) return;
+      state.seenEvidence.add(ev.id);
+      list.prepend(evidenceItem(ev));
+    });
 
-    if (run.evidence) {
-      countBadge.textContent = String(run.evidence.length);
-      run.evidence.forEach((ev) => {
-        if (!knownEvidenceIds.has(ev.id)) {
-          knownEvidenceIds.add(ev.id);
-          const card = createEvidenceCard(ev);
-          evidenceList.prepend(card);
-        }
-      });
-    }
+    state.evidence = (run.evidence || []).length;
+    $("evidence-count").textContent = String(state.evidence);
+    $("metric-sources").textContent = `${state.evidence} source${state.evidence === 1 ? "" : "s"}`;
+    $("evidence-placeholder").hidden = state.evidence > 0;
   } catch (err) {
-    console.error("Evidence update error:", err);
+    /* transient; the authoritative fetch happens again at completion */
   }
 }
 
-function createEvidenceCard(ev) {
-  const card = document.createElement("div");
-  card.className = "evidence-card";
+function evidenceItem(ev) {
+  const li = document.createElement("li");
+  li.className = "evidence-item";
 
-  const header = document.createElement("div");
-  header.className = "evidence-header";
+  const top = document.createElement("div");
+  top.className = "evidence-top";
 
-  const chip = document.createElement("span");
-  chip.className = "evidence-chip";
-  chip.textContent = ev.id;
+  const id = document.createElement("span");
+  id.className = "ev-id";
+  id.textContent = ev.id;
 
-  const source = document.createElement("span");
-  source.className = "evidence-source";
-  source.textContent = `${ev.source}${ev.published ? " · " + ev.published : ""}`;
+  const src = document.createElement("span");
+  src.className = "ev-src";
+  src.textContent = ev.published ? `${ev.source} · ${ev.published}` : ev.source;
 
-  header.appendChild(chip);
-  header.appendChild(source);
+  const tool = document.createElement("span");
+  tool.className = "ev-tool";
+  tool.textContent = ev.tool;
+
+  top.append(id, src, tool);
 
   const title = document.createElement("div");
-  title.className = "evidence-title";
+  title.className = "ev-title";
   title.textContent = ev.title;
 
-  card.appendChild(header);
-  card.appendChild(title);
-  return card;
+  li.append(top, title);
+  return li;
 }
 
-// 5. Final Report Rendering
-async function finalizeRunReport(runId) {
-  stopInvestigation();
-  try {
-    const res = await fetch(`/api/run/${runId}`);
-    if (!res.ok) throw new Error("Failed to load completed run record.");
-    const run = await res.json();
-
-    if (run.status === "error") {
-      showError(run.limitations[0] || "Investigation failed", "Check server logs.");
-      return;
-    }
-
-    renderReport(run);
-  } catch (err) {
-    showError(err.message, "Could not fetch report details.");
-  }
-}
+/* --------------------------------------------------------- report renderer */
 
 function renderReport(run) {
-  showScreen("screen-report");
-
   const report = run.report;
   if (!report) {
-    showError("No report generated for this run.", "Please try again.");
+    showError("No report was produced for this investigation.", "Try a different objective.");
     return;
   }
 
-  document.getElementById("report-target-name").textContent = run.query;
-  const elapsedSec = Math.floor((Date.now() - investigationStartTime) / 1000);
-  document.getElementById("report-metrics-badge").textContent = 
-    `${run.tool_calls.length} tool calls · ${run.evidence.length} sources · ${elapsedSec}s`;
+  showScreen("screen-report");
+  $("screen-run").hidden = true;
+  $("report-target").textContent = run.query;
 
-  // Summary
-  document.getElementById("report-summary").innerHTML = formatTextWithCitations(report.summary);
+  const elapsed = Math.max(1, Math.round((Date.now() - state.startedAt) / 1000));
+  const toolsUsed = [...new Set((run.tool_calls || []).map((t) => t.name))];
+  $("trace-summary").textContent =
+    `${state.events.length} steps · ${(run.tool_calls || []).length} tool calls · ` +
+    `${toolsUsed.length} sources · ${(run.evidence || []).length} evidence · ${elapsed}s`;
 
-  // Signals
-  const signalsContainer = document.getElementById("report-signals");
-  signalsContainer.innerHTML = "";
+  const validIds = new Set((run.evidence || []).map((e) => e.id));
 
-  if (report.signals && report.signals.length > 0) {
-    report.signals.forEach((sig) => {
-      const item = document.createElement("div");
-      item.className = "signal-item";
+  // Executive intelligence
+  $("report-summary").innerHTML = withCitations(report.summary, validIds);
 
-      const header = document.createElement("div");
-      header.className = "signal-header";
-
-      const badge = document.createElement("span");
-      badge.className = `tier-badge ${sig.tier}`;
-      badge.textContent = `${sig.tier} Priority`;
-
-      const headline = document.createElement("span");
-      headline.className = "signal-headline";
-      headline.textContent = sig.headline;
-
-      header.appendChild(badge);
-      header.appendChild(headline);
-
-      const detail = document.createElement("div");
-      detail.className = "signal-detail";
-      detail.innerHTML = formatTextWithCitations(sig.detail);
-
-      item.appendChild(header);
-      item.appendChild(detail);
-      signalsContainer.appendChild(item);
-    });
+  // Key signals
+  const signalsHost = $("report-signals");
+  signalsHost.innerHTML = "";
+  const signals = report.signals || [];
+  if (signals.length) {
+    signals.forEach((sig) => signalsHost.appendChild(signalCard(sig, validIds)));
   } else {
-    signalsContainer.innerHTML = "<p class='signal-detail'>No distinct prioritized signals extracted.</p>";
+    signalsHost.innerHTML = `<p class="placeholder">The agent did not extract distinct prioritized signals for this investigation.</p>`;
   }
 
-  // Adaptive Sections
-  const adaptiveContainer = document.getElementById("report-adaptive-sections");
-  adaptiveContainer.innerHTML = "";
-
-  const sectionConfig = [
-    { key: "research", title: "Key Research Developments" },
-    { key: "competitor_industry", title: "Competitor & Industry Activity" },
-    { key: "recent_developments", title: "Recent Developments" },
-    { key: "patents", title: "Patent Signals" },
+  // Adaptive sections — rendered only when the backend supplied content
+  const sectionsHost = $("report-sections");
+  sectionsHost.innerHTML = "";
+  const sectionMap = [
+    ["competitor_industry", "Competitive implications"],
+    ["research", "Research signals"],
+    ["patents", "Patent signals"],
+    ["recent_developments", "Recent developments"],
+    ["why_it_matters", "Why this matters"],
   ];
+  const sections = report.sections || {};
+  sectionMap.forEach(([key, label]) => {
+    const value = sections[key];
+    if (!value || !String(value).trim()) return;
+    const block = document.createElement("div");
+    block.className = "block";
+    const head = document.createElement("h2");
+    head.className = "block-head";
+    head.textContent = label;
+    const prose = document.createElement("div");
+    prose.className = "prose";
+    prose.innerHTML = withCitations(value, validIds);
+    block.append(head, prose);
+    sectionsHost.appendChild(block);
+  });
 
-  if (report.sections) {
-    sectionConfig.forEach((sec) => {
-      const content = report.sections[sec.key];
-      if (content && content.trim()) {
-        const secDiv = document.createElement("div");
-        secDiv.className = "report-section";
+  // Recommended next actions
+  const actions = report.next_actions || [];
+  $("block-actions").hidden = actions.length === 0;
+  const actionsHost = $("report-actions");
+  actionsHost.innerHTML = "";
+  actions.forEach((a) => {
+    const li = document.createElement("li");
+    li.innerHTML = withCitations(a, validIds);
+    actionsHost.appendChild(li);
+  });
 
-        const h3 = document.createElement("h3");
-        h3.className = "section-heading";
-        h3.textContent = sec.title;
+  // Knowledge gaps & limitations
+  const limits = report.limitations || [];
+  $("block-limitations").hidden = limits.length === 0;
+  const limitsHost = $("report-limitations");
+  limitsHost.innerHTML = "";
+  limits.forEach((l) => {
+    const li = document.createElement("li");
+    li.textContent = l;
+    limitsHost.appendChild(li);
+  });
 
-        const body = document.createElement("div");
-        body.className = "signal-detail";
-        body.innerHTML = formatTextWithCitations(content);
+  renderCoverage(run, toolsUsed);
+  renderSources(run);
+  wireCitations();
+}
 
-        secDiv.appendChild(h3);
-        secDiv.appendChild(body);
-        adaptiveContainer.appendChild(secDiv);
-      }
-    });
-  }
+function signalCard(sig, validIds) {
+  const card = document.createElement("article");
+  card.className = "signal";
 
-  // Why This Matters
-  const whyMattersEl = document.getElementById("section-why-it-matters");
-  if (report.sections && report.sections.why_it_matters) {
-    whyMattersEl.style.display = "block";
-    document.getElementById("report-why-it-matters-content").innerHTML = formatTextWithCitations(report.sections.why_it_matters);
-  } else {
-    whyMattersEl.style.display = "none";
-  }
+  const top = document.createElement("div");
+  top.className = "signal-top";
 
-  // Next Actions
-  const actionsEl = document.getElementById("section-next-actions");
-  const actionsList = document.getElementById("report-next-actions-list");
-  actionsList.innerHTML = "";
-  if (report.next_actions && report.next_actions.length > 0) {
-    actionsEl.style.display = "block";
-    report.next_actions.forEach((act) => {
-      const li = document.createElement("li");
-      li.innerHTML = formatTextWithCitations(act);
-      actionsList.appendChild(li);
-    });
-  } else {
-    actionsEl.style.display = "none";
-  }
+  const badge = document.createElement("span");
+  badge.className = `sig-badge ${SIGNIFICANCE_CLASS[sig.tier] || "low"}`;
+  badge.textContent = SIGNIFICANCE[sig.tier] || sig.tier;
 
-  // Coverage & Limitations
-  const limBox = document.getElementById("report-limitations-box");
-  const limList = document.getElementById("report-limitations-list");
-  limList.innerHTML = "";
-  const allNotes = [...(report.coverage || []), ...(report.limitations || [])];
+  const headline = document.createElement("h3");
+  headline.className = "signal-headline";
+  headline.textContent = sig.headline;
 
-  if (allNotes.length > 0) {
-    limBox.style.display = "block";
-    allNotes.forEach((note) => {
-      const li = document.createElement("li");
-      li.textContent = note;
-      limList.appendChild(li);
-    });
-  } else {
-    limBox.style.display = "none";
-  }
+  top.append(badge, headline);
 
-  // Verified Sources
-  const sourcesContainer = document.getElementById("report-sources-list");
-  sourcesContainer.innerHTML = "";
+  const detail = document.createElement("div");
+  detail.className = "signal-detail prose";
+  detail.innerHTML = withCitations(sig.detail, validIds);
 
-  if (run.evidence && run.evidence.length > 0) {
-    run.evidence.forEach((ev) => {
-      const sItem = document.createElement("div");
-      sItem.className = "source-item";
-      sItem.id = `source-${ev.id}`;
+  card.append(top, detail);
+  return card;
+}
 
-      const sId = document.createElement("span");
-      sId.className = "source-id";
-      sId.textContent = `[${ev.id}]`;
+function renderCoverage(run, toolsUsed) {
+  const stats = [
+    [(run.evidence || []).length, "Evidence items"],
+    [toolsUsed.length, "Sources used"],
+    [(run.tool_calls || []).length, "Tool calls"],
+  ];
+  const host = $("coverage-stats");
+  host.innerHTML = "";
+  stats.forEach(([value, label]) => {
+    const box = document.createElement("div");
+    box.className = "stat";
+    const v = document.createElement("div");
+    v.className = "stat-value";
+    v.textContent = String(value);
+    const l = document.createElement("div");
+    l.className = "stat-label";
+    l.textContent = label;
+    box.append(v, l);
+    host.appendChild(box);
+  });
 
-      const sBody = document.createElement("div");
-      sBody.style.flex = "1";
+  // Per-tool breakdown, computed from the real run record
+  const list = $("coverage-list");
+  list.innerHTML = "";
+  toolsUsed.forEach((tool) => {
+    const calls = (run.tool_calls || []).filter((t) => t.name === tool);
+    const items = (run.evidence || []).filter((e) => e.tool === tool).length;
+    const failed = calls.filter((c) => !c.ok).length;
 
-      const sLink = document.createElement("a");
-      sLink.className = "source-link";
-      sLink.href = ev.url || "#";
-      sLink.target = "_blank";
-      sLink.rel = "noopener noreferrer";
-      sLink.textContent = ev.title;
+    const row = document.createElement("li");
+    row.className = "coverage-row";
 
-      const sMeta = document.createElement("div");
-      sMeta.className = "source-meta";
-      const metaParts = [ev.source];
-      if (ev.published) metaParts.push(ev.published);
-      if (ev.authors && ev.authors.length > 0) metaParts.push(ev.authors.join(", "));
-      sMeta.textContent = metaParts.join(" · ");
+    const name = document.createElement("span");
+    name.className = "mono";
+    name.textContent = tool;
 
-      sBody.appendChild(sLink);
-      sBody.appendChild(sMeta);
+    const detail = document.createElement("span");
+    detail.textContent = `${calls.length} call${calls.length === 1 ? "" : "s"} · ${items} evidence item${items === 1 ? "" : "s"}`;
 
-      sItem.appendChild(sId);
-      sItem.appendChild(sBody);
-      sourcesContainer.appendChild(sItem);
-    });
-  } else {
-    sourcesContainer.innerHTML = "<p class='signal-detail'>No external sources recorded.</p>";
-  }
+    const status = document.createElement("span");
+    status.className = "spacer";
+    status.textContent = failed ? `${failed} failed` : "ok";
 
-  // Wire citation chips click events
-  document.querySelectorAll(".citation-chip").forEach((chip) => {
-    chip.addEventListener("click", (e) => {
-      e.preventDefault();
-      const targetId = chip.getAttribute("data-target");
-      const targetEl = document.getElementById(targetId);
-      if (targetEl) {
-        targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
-        targetEl.style.backgroundColor = "#EFF6FF";
-        setTimeout(() => {
-          targetEl.style.backgroundColor = "";
-        }, 1500);
-      }
-    });
+    row.append(name, detail, status);
+    list.appendChild(row);
   });
 }
 
-function formatTextWithCitations(rawText) {
-  if (!rawText) return "";
-  const escaped = rawText
+function renderSources(run) {
+  const host = $("report-sources");
+  host.innerHTML = "";
+  const evidence = run.evidence || [];
+
+  if (!evidence.length) {
+    host.innerHTML = `<p class="placeholder">No verifiable sources were returned by the tools the agent selected.</p>`;
+    return;
+  }
+
+  evidence.forEach((ev) => {
+    const li = document.createElement("li");
+    li.className = "source-row";
+    li.id = `source-${ev.id}`;
+
+    const id = document.createElement("span");
+    id.className = "source-id";
+    id.textContent = `[${ev.id}]`;
+
+    const body = document.createElement("div");
+
+    const title = document.createElement("div");
+    title.className = "source-title";
+    if (ev.url) {
+      const link = document.createElement("a");
+      link.href = ev.url;                    // only ever an evidence-store URL
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = ev.title;
+      title.appendChild(link);
+    } else {
+      title.textContent = ev.title;
+    }
+
+    const meta = document.createElement("div");
+    meta.className = "source-meta";
+    const parts = [ev.source];
+    if (ev.published) parts.push(ev.published);
+    if (ev.authors && ev.authors.length) parts.push(ev.authors.slice(0, 3).join(", "));
+    parts.push(ev.tool);
+    meta.textContent = parts.join(" · ");
+
+    body.append(title, meta);
+    li.append(id, body);
+    host.appendChild(li);
+  });
+}
+
+/* ------------------------------------------------- citations & escaping */
+
+function withCitations(raw, validIds) {
+  if (!raw) return "";
+  const escaped = String(raw)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
-  // Transform [En] markers to interactive chips
-  return escaped.replace(/\[(E\d+)\]/g, (match, cid) => {
-    return `<a href="#source-${cid}" class="citation-chip" data-target="source-${cid}">[${cid}]</a>`;
+  // Only markers that resolve to a real evidence record become links.
+  return escaped.replace(/\[(E\d+)\]/g, (match, id) => {
+    if (!validIds.has(id)) return "";
+    return `<a href="#source-${id}" class="citation" data-target="source-${id}">[${id}]</a>`;
   });
 }
 
-// 6. Error State Renderer
-function showError(message, troubleshooting) {
+function wireCitations() {
+  document.querySelectorAll(".citation").forEach((chip) => {
+    chip.addEventListener("click", (e) => {
+      e.preventDefault();
+      const target = document.getElementById(chip.dataset.target);
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.classList.add("flash");
+      setTimeout(() => target.classList.remove("flash"), 1400);
+    });
+  });
+}
+
+/* ---------------------------------------------------------------- errors */
+
+function showError(message, hint) {
+  stopStream();
+  $("error-message").textContent = message || "An unexpected error occurred.";
+  $("error-hint").textContent = hint || "";
   showScreen("screen-error");
-  document.getElementById("error-message").textContent = message;
-  document.getElementById("error-troubleshooting").textContent = 
-    troubleshooting || "Please verify environment settings and try again.";
 }

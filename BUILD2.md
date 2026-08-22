@@ -497,3 +497,41 @@ Minimum version that still satisfies the requirement, cut in this order if the c
 ---
 
 ## Stage Outcome
+
+**Stage 1 complete (GREEN).** Verified by live runs on `gemini-3.5-flash-lite`; no mocked data.
+
+### 1. What was actually built
+- **Agent-authored tool reasons.** `reason` added to all four `*_SEARCH_SCHEMA` definitions (required in the schema so the model reliably supplies it). New `app/tools/__init__.py::extract_reason()`; `execute_tool` still calls providers as `func(query=, limit=)` only, so `reason` never reaches a provider. A missing reason is not an error.
+- **`app/llm.py`** — SYSTEM_INSTRUCTION principle 7 (TOOL JUSTIFICATION + minimum-tools instruction). No change to `propose_next_step`, `resolve_model`, or the Gemini surface.
+- **`app/models.py`** — one new `PhaseEnum` member, `IDENTIFYING_GAPS`.
+- **`app/agent.py`** — telemetry enrichment only: `available_tools` on the objective event, `step` on planning events, `IDENTIFYING_GAPS` emitted when a follow-up tool call is made while evidence already exists (detail = the model's own reason), `query`/`reason`/`call_index` on `tool_selected`, `total_evidence`/`ok` on results, `tool`/`ok`/`error` on failures, `tools_used`/`signals` on completion, and `reason` carried into `run.tool_calls[]`. Loop, budgets and evidence handling untouched.
+- **Full frontend redesign** — `web/app.css` (new token system: one accent, hairline structure, monospace reserved for machine facts, one 1000px breakpoint, `prefers-reduced-motion`), `web/index.html` (top bar with live health, arrival state, workspace, report, error), `web/app.js` (numbered tool-decision timeline with QUERY/REASON rows, earlier-steps disclosure, live evidence stream, High/Medium/Low signal mapping, source-coverage stats, evidence-only sources, citation chips).
+
+### 2. Verified — three distinct dynamic tool paths
+| Investigation | Observed tool path | Reasons present |
+|---|---|---|
+| CRISPR base editing off-target safety | `research_search -> web_search -> web_search` | 3/3 |
+| Quantum error correction patent landscape | `patent_search -> web_search -> web_search` | 3/3 |
+| NVIDIA's competitive position in AI infrastructure | `news_search -> web_search -> news_search` | 3/3 |
+
+Each run: `status=done`, 23-24 evidence items, 5-6 prioritized signals, 4 adaptive sections, 3 model-authored next actions, max SSE inter-event gap 6.8-7.8 s (the synthesis turn), 2 `IDENTIFYING_GAPS` events. The first tool differs per objective and no run called all four tools.
+
+Commands: `python -m app.config`; `python -m app.tools.{news,research,web,patents} "<q>"`; `python -m app.agent "NVIDIA's competitive position in AI infrastructure"`; `python -m uvicorn app.main:app --port 8000`; `GET /api/health`, `POST /api/investigate`, `GET /api/stream/{id}`, `GET /api/run/{id}`, `GET /`, `/app.css`, `/app.js` all 200.
+
+Failure paths (verified by simulating a provider outage): `tool_unavailable` returned with `results == []` and no fabricated evidence; other tools kept working; `unknown_tool` and `invalid_arguments` still returned as structured data. Integrity across all runs: zero citations outside the evidence store, zero URLs in model prose, zero thought leakage.
+
+### 3. Deviations from the plan
+- **None functional.** All 11 planned steps implemented as specified in `Implementation Plan`; nothing from `Scope Cut Line` was cut.
+- `/api/health` is polled once on load rather than continuously (not specified either way).
+
+### 4. Known limitations
+- The gap phase is inferred from "a follow-up tool call while evidence exists" plus the model's own reason; it is not a separate model judgement about what is missing.
+- Evidence is still not de-duplicated across tool calls (carried over from Stage 0).
+- `store.broadcast_event` still calls `put_nowait` from the worker thread; observed reliable in every run.
+- Report prose is rendered as pre-wrapped text, so markdown bullet markers from the model appear literally.
+- Verified on Chromium-class rendering at 1440/1024/800 px only.
+
+### 5. Repository hygiene issues found during this stage (NOT introduced by it)
+- **A GitHub remote exists** (`origin -> github.com/fakegrandpa/AGENTX24`) and `origin/main` matched local `HEAD`, contradicting the local-only instruction.
+- **Commit `434e91c` added `.env` containing a real 53-character `GEMINI_API_KEY`.** `c5e45e8` only untracked the file; the value remains in history and, given the remote, was likely published. **The key must be rotated.** Not remediable without history rewrite, which is destructive and needs explicit approval.
+- `.gitignore` line 88 ignores `BUILD*.md`, so `BUILD1.md` and `BUILD2.md` are untracked; `BUILD2.md` was force-added for this stage's checkpoints.
