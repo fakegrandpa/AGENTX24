@@ -226,7 +226,6 @@ python -m app.agent "Solid-State Battery Degradation"
 - **Abhale Atharv**
 - **Tushar Mate**
 - **Yash Supekar**
-- **Aniket Suarese**
 - **Gaurav Sonawane**
 - **Shardul Gaikwad**
 
