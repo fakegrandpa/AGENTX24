@@ -77,7 +77,7 @@ def _tool_to_provider_kind(tool_name: str) -> str:
     return "news"
 
 
-def run_investigation(
+def _run_investigation_legacy(
     objective: str,
     emit_callback: Callable[[TelemetryEvent], None] | None = None,
 ) -> Run:
@@ -623,6 +623,28 @@ def run_investigation(
     )
 
     return run
+
+
+def run_investigation(
+    objective: str,
+    emit_callback: Callable[[TelemetryEvent], None] | None = None,
+    *,
+    run_id: str | None = None,
+    adversarial: bool = False,
+) -> Run:
+    """Runs the LangGraph path, preserving the verified loop as a fail-open fallback."""
+    from app.config import ENABLE_GRAPH
+
+    if ENABLE_GRAPH:
+        try:
+            from app.graph import run_graph
+
+            return run_graph(objective, emit_callback=emit_callback, run_id=run_id, adversarial=adversarial)
+        except Exception as graph_error:
+            fallback = _run_investigation_legacy(objective, emit_callback=emit_callback)
+            fallback.limitations.append(f"LangGraph execution failed; legacy loop used: {graph_error}")
+            return fallback
+    return _run_investigation_legacy(objective, emit_callback=emit_callback)
 
 
 if __name__ == "__main__":

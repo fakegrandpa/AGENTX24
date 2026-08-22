@@ -31,6 +31,20 @@ class PhaseEnum(str, Enum):
     GENERATING_REPORT = "Generating intelligence report"
     COMPLETED = "Completed"
     ERROR = "Error encountered"
+    PLANNING_INVESTIGATION = "Planning investigation"
+    PLAN_REVISED = "Investigation plan revised"
+    PARALLEL_DISPATCH = "Parallel tasks dispatched"
+    TOOL_FALLBACK = "Tool fallback selected"
+    CONFLICT_DETECTED = "Conflicting evidence detected"
+    CONFLICT_RESOLVED = "Conflicting evidence resolved"
+    HYPOTHESIS_CREATED = "Hypothesis created"
+    HYPOTHESIS_VERIFIED = "Hypothesis verified"
+    UNCERTAINTY_UPDATED = "Uncertainty updated"
+    SELF_EVALUATION = "Self-evaluation completed"
+    CHECKPOINT_SAVED = "Checkpoint saved"
+    RESUMED = "Investigation resumed"
+    LOOP_DETECTED = "No-progress loop detected"
+    GRAPH_NODE_ENTERED = "Graph node entered"
 
 
 class Critique(BaseModel):
@@ -137,3 +151,12 @@ class Run(BaseModel):
     prior_memories: list[MemoryRecord] = Field(default_factory=list)
     report: Report | None = None
     limitations: list[str] = Field(default_factory=list)
+    graph_trace: list[str] = Field(default_factory=list)
+    checkpoints: list[str] = Field(default_factory=list)
+    plan: list[dict[str, Any]] = Field(default_factory=list)
+    hypotheses: list[dict[str, Any]] = Field(default_factory=list)
+    conflicts: list[dict[str, Any]] = Field(default_factory=list)
+    uncertainty: str = "low"
+    resource_ledger: dict[str, Any] = Field(default_factory=dict)
+    resumed_from: str | None = None
+    adversarial: bool = False

@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from app.agent import run_investigation
 from app.agents import AGENT_ROSTER
-from app.config import ENABLE_CRITIC, ENABLE_MEMORY, GEMINI_API_KEY, GEMINI_MODEL, get_enabled_providers
+from app.config import ENABLE_CRITIC, ENABLE_MEMORY, ENABLE_GRAPH, GRAPH_CHECKPOINT_PATH, GEMINI_API_KEY, GEMINI_MODEL, get_enabled_providers
 from app.llm import resolve_model
 from app.memory import load_all_memories
 from app.models import Run, TelemetryEvent
@@ -46,15 +46,16 @@ app.add_middleware(
 
 class InvestigateRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=500, description="Target company, competitor, research topic, or industry")
+    adversarial: bool = Field(default=False, description="Opt-in failure/conflict recovery demonstration")
 
 
-def _execute_investigation_background(run_id: str, query: str) -> None:
+def _execute_investigation_background(run_id: str, query: str, adversarial: bool = False) -> None:
     """Background task executor for an investigation run."""
     def on_event(event: TelemetryEvent) -> None:
         broadcast_event(run_id, event)
 
     try:
-        final_run = run_investigation(objective=query, emit_callback=on_event)
+        final_run = run_investigation(objective=query, emit_callback=on_event, run_id=run_id, adversarial=adversarial)
         # Update run in store with final state
         _RUNS[run_id] = final_run
     except Exception as e:
@@ -83,6 +84,9 @@ def api_health() -> dict:
         "critic_enabled": ENABLE_CRITIC,
         "memory_enabled": ENABLE_MEMORY,
         "memory_records_count": len(load_all_memories()),
+        "framework": "langgraph",
+        "graph_enabled": ENABLE_GRAPH,
+        "checkpoint_path": str(GRAPH_CHECKPOINT_PATH),
     }
 
 
@@ -94,7 +98,7 @@ def api_investigate(req: InvestigateRequest, background_tasks: BackgroundTasks) 
         raise HTTPException(status_code=400, detail="Search query cannot be empty.")
 
     run = create_run(clean_query)
-    background_tasks.add_task(_execute_investigation_background, run.id, clean_query)
+    background_tasks.add_task(_execute_investigation_background, run.id, clean_query, req.adversarial)
     return {"run_id": run.id, "query": run.query, "status": "running"}
 
 
@@ -145,6 +149,39 @@ def api_get_run(run_id: str) -> Run:
     if not run:
         raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found.")
     return run
+
+
+@app.post("/api/run/{run_id}/resume")
+def api_resume_run(run_id: str, background_tasks: BackgroundTasks) -> dict:
+    """Resumes a durable LangGraph checkpoint for an interrupted run."""
+    if not get_run(run_id):
+        try:
+            from app.graph import get_checkpoint_state
+            checkpoint = get_checkpoint_state(run_id)
+            if not checkpoint:
+                raise ValueError("checkpoint missing")
+            _RUNS[run_id] = Run(id=run_id, query=checkpoint.get("objective", "resumed investigation"), status="running", started_at=checkpoint.get("started_at", ""))
+        except Exception:
+            raise HTTPException(status_code=404, detail=f"Run '{run_id}' not found or has no durable checkpoint.")
+
+    def resume_background() -> None:
+        def on_event(event: TelemetryEvent) -> None:
+            broadcast_event(run_id, event)
+
+        try:
+            from app.graph import resume_graph
+
+            _RUNS[run_id] = resume_graph(run_id, emit_callback=on_event)
+        except Exception as e:
+            run = get_run(run_id)
+            if run:
+                run.status = "error"
+                run.limitations.append(f"Resume failure: {e}")
+        finally:
+            close_stream(run_id)
+
+    background_tasks.add_task(resume_background)
+    return {"run_id": run_id, "status": "resuming"}
 
 
 # Static files serving for the Single-Page Judge Dashboard

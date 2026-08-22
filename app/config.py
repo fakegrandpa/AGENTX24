@@ -22,10 +22,19 @@ LLM_RETRIES = int(os.getenv("LLM_RETRIES", "2"))
 ENABLE_CRITIC = os.getenv("ENABLE_CRITIC", "1").strip() not in ("0", "false", "False")
 MAX_CRITIQUES = int(os.getenv("MAX_CRITIQUES", "2"))
 
+# LangGraph orchestration (Stage 5)
+ENABLE_GRAPH = os.getenv("ENABLE_GRAPH", "1").strip() not in ("0", "false", "False")
+GRAPH_RECURSION_LIMIT = int(os.getenv("GRAPH_RECURSION_LIMIT", "80"))
+LLM_CALL_BUDGET = int(os.getenv("LLM_CALL_BUDGET", "14"))
+PARALLEL_TOOL_CALLS = int(os.getenv("PARALLEL_TOOL_CALLS", "3"))
+MAX_REPLANS = int(os.getenv("MAX_REPLANS", "3"))
+ADVERSARIAL_MODE = os.getenv("ADVERSARIAL_MODE", "0").strip() not in ("0", "false", "False")
+
 # Context & Memory Configuration (Stage 4)
 ENABLE_MEMORY = os.getenv("ENABLE_MEMORY", "1").strip() not in ("0", "false", "False")
 MEMORY_RETRIEVAL_LIMIT = int(os.getenv("MEMORY_RETRIEVAL_LIMIT", "3"))
 MEMORY_STORAGE_PATH = ROOT_DIR / "data" / "investigation_memory.json"
+GRAPH_CHECKPOINT_PATH = ROOT_DIR / "data" / "graph_checkpoints.sqlite"
 
 # Optional Provider API Keys
 SEMANTIC_SCHOLAR_API_KEY = os.getenv("SEMANTIC_SCHOLAR_API_KEY", "").strip()
@@ -70,6 +79,7 @@ def print_config_summary() -> None:
     print(f"Loop Budgets              : Max Iterations={MAX_ITERATIONS}, Max Tool Calls={MAX_TOOL_CALLS}, Wall Clock={WALL_CLOCK}s")
     print(f"Tool Settings             : Timeout={TOOL_TIMEOUT}s, Retries={TOOL_RETRIES}")
     print(f"Multi-Agent Settings      : Enable Critic={ENABLE_CRITIC}, Max Critiques={MAX_CRITIQUES}")
+    print(f"Graph Settings            : Enable Graph={ENABLE_GRAPH}, Recursion Limit={GRAPH_RECURSION_LIMIT}, LLM Budget={LLM_CALL_BUDGET}, Parallel Tools={PARALLEL_TOOL_CALLS}, Max Replans={MAX_REPLANS}, Adversarial={ADVERSARIAL_MODE}")
     print(f"Memory Settings           : Enable Memory={ENABLE_MEMORY}, Retrieval Limit={MEMORY_RETRIEVAL_LIMIT}")
     print(f"Memory Path               : {MEMORY_STORAGE_PATH}")
     print("Enabled Tool Providers    :")

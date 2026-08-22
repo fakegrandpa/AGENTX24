@@ -54,6 +54,7 @@ AGENTX24 addresses these challenges through a unified agentic architecture:
 - **Real-Time Telemetry Stream**: Low-latency SSE telemetry with phase indicators, agent attribution badges, and structured decision logs.
 - **Interactive Web Interface**: Live timer, Decision Trace timeline, expandable evidence fragment cards, and click-to-scroll citation chips.
 - **Fail-Open Resilience**: Graceful fallbacks for network interruptions, tool timeouts, and storage errors ensure uninterrupted operation.
+- **LangGraph Orchestration**: The graph path provides shared state, dynamic planning, conditional routing, parallel independent tool workers, durable SQLite checkpoints, bounded replanning, conflict/uncertainty tracking, hypothesis status, resource accounting, and opt-in adversarial recovery. The original hand-written loop remains available with `ENABLE_GRAPH=0` for parity checks.
 
 ---
 
@@ -400,6 +401,27 @@ pip install -r requirements.txt
 # 4. Create local environment configuration
 Copy-Item .env.example .env    # On Linux/macOS: cp .env.example .env
 ```
+
+### Agent Framework Verification
+
+```powershell
+# Normal LangGraph graph execution with real Gemini/tools
+.\.venv\Scripts\python.exe -m app.graph "NVIDIA AI infrastructure moat"
+
+# Opt-in deterministic tool-failure/conflicting-evidence recovery demonstration
+$env:ADVERSARIAL_MODE="1"
+.\.venv\Scripts\python.exe -m app.graph "NVIDIA AI infrastructure moat"
+Remove-Item Env:\ADVERSARIAL_MODE
+
+# Legacy V3/V4 loop parity check
+$env:ENABLE_GRAPH="0"
+.\.venv\Scripts\python.exe -m app.agent "NVIDIA AI infrastructure moat"
+Remove-Item Env:\ENABLE_GRAPH
+```
+
+Graph checkpoints are stored in `data/graph_checkpoints.sqlite` and are addressed by the
+stable API run id. An interrupted run can be resumed with the additive endpoint
+`POST /api/run/{run_id}/resume`.
 
 Open `.env` and configure your Gemini API Key:
 ```dotenv

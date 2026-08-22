@@ -42,6 +42,15 @@ def extract_reason(args: dict[str, Any]) -> str | None:
 
 def execute_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
     """Validates and executes a tool call, returning structured error data on failure."""
+    # Adversarial faults are opt-in and isolated from normal provider behavior.
+    try:
+        from app.adversarial import maybe_fault, maybe_inject_conflict
+        fault = maybe_fault(name, args)
+        if fault is not None:
+            return fault
+    except Exception:
+        maybe_inject_conflict = None
+
     if name not in TOOL_REGISTRY:
         return {
             "error": "unknown_tool",
@@ -70,7 +79,10 @@ def execute_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
 
     try:
         # Only query and limit are forwarded; 'reason' stays out of the provider call.
-        return func(query=query.strip(), limit=limit)
+        result = func(query=query.strip(), limit=limit)
+        if maybe_inject_conflict is not None:
+            result = maybe_inject_conflict(name, result)
+        return result
     except Exception as e:
         return {
             "error": "tool_execution_failed",
