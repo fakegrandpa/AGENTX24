@@ -1,12 +1,14 @@
+import os
 import time
 import logging
 from typing import Any
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from google import genai
 from google.genai import types
 from google.genai.errors import APIError
 
-from app.config import GEMINI_API_KEY, GEMINI_MODEL, LLM_RETRIES
+from app.config import GEMINI_API_KEY, GEMINI_MODEL, LLM_RETRIES, ROOT_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +44,11 @@ class LLMResponse(BaseModel):
 
 def get_client() -> genai.Client | None:
     """Returns an initialized GenAI client or None if no API key is set."""
-    if not GEMINI_API_KEY:
+    load_dotenv(dotenv_path=ROOT_DIR / ".env", override=True)
+    api_key = os.getenv("GEMINI_API_KEY", "").strip() or GEMINI_API_KEY
+    if not api_key:
         return None
-    return genai.Client(api_key=GEMINI_API_KEY)
+    return genai.Client(api_key=api_key)
 
 
 # Model resolution is cached: the preflight costs a ListModels round trip, and
@@ -69,14 +73,16 @@ def resolve_model(force_refresh: bool = False) -> tuple[str, bool, str]:
 
 
 def _resolve_model_uncached() -> tuple[str, bool, str]:
-    if not GEMINI_API_KEY:
+    load_dotenv(dotenv_path=ROOT_DIR / ".env", override=True)
+    api_key = os.getenv("GEMINI_API_KEY", "").strip() or GEMINI_API_KEY
+    if not api_key:
         return ("unconfigured", False, "GEMINI_API_KEY is not set in environment or .env")
 
     client = get_client()
     if not client:
         return ("unconfigured", False, "Failed to initialize Gemini client")
 
-    target_model = GEMINI_MODEL
+    target_model = os.getenv("GEMINI_MODEL", "").strip() or GEMINI_MODEL
     try:
         # Check available models (single listing pass)
         available_models = []

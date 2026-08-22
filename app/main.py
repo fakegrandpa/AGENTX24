@@ -22,7 +22,7 @@ from app.store import (
 )
 from app.tools import get_advertised_tools
 
-# AGENTX24 FastAPI Application Server - Gemini 3.5 Flash Lite Active
+# AGENTX24 FastAPI Application Server - Reloaded
 ROOT_DIR = Path(__file__).resolve().parent.parent
 WEB_DIR = ROOT_DIR / "web"
 
