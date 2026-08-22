@@ -33,8 +33,8 @@ ADVERSARIAL_MODE = os.getenv("ADVERSARIAL_MODE", "0").strip() not in ("0", "fals
 # Context & Memory Configuration (Stage 4)
 ENABLE_MEMORY = os.getenv("ENABLE_MEMORY", "1").strip() not in ("0", "false", "False")
 MEMORY_RETRIEVAL_LIMIT = int(os.getenv("MEMORY_RETRIEVAL_LIMIT", "3"))
-MEMORY_STORAGE_PATH = ROOT_DIR / "data" / "investigation_memory.json"
-GRAPH_CHECKPOINT_PATH = ROOT_DIR / "data" / "graph_checkpoints.sqlite"
+MEMORY_STORAGE_PATH = Path(os.getenv("MEMORY_STORAGE_PATH", str(ROOT_DIR / "data" / "investigation_memory.json")))
+GRAPH_CHECKPOINT_PATH = Path(os.getenv("GRAPH_CHECKPOINT_PATH", str(ROOT_DIR / "data" / "graph_checkpoints.sqlite")))
 
 # Optional Provider API Keys
 SEMANTIC_SCHOLAR_API_KEY = os.getenv("SEMANTIC_SCHOLAR_API_KEY", "").strip()

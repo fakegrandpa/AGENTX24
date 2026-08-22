@@ -536,6 +536,48 @@ python -c "import sqlite3; conn = sqlite3.connect('data/graph_checkpoints.sqlite
 
 ---
 
+## 21. Evaluation Harness & Measurable Criteria (Stage 6)
+
+AGENTX24 features a dedicated, offline evaluation harness under `eval/` that measures multi-agent intelligence performance across **6 core dimensions** and **19 deterministic metrics**:
+
+1. **Accuracy & Groundedness**: Grounded citation rate (`>= 95%`), citation density, evidence utilisation, unsupported claim rate, and blocked fabrication attempts.
+2. **Task Completion**: Synthesis completion rate (`>= 90%`), section population, and signal count.
+3. **Reliability & Consistency**: Multi-run stability, evidence count variance, signal count variance, and tool selection Jaccard similarity.
+4. **Robustness & Recovery**: Failure recovery rate (`>= 75%`), adversarial conflict detection, calibrated uncertainty identification, and honest refusal on fictitious subjects.
+5. **Evidence Quality**: Multi-source provider diversity, provider kinds covered (news, research, web, patent), publication recency, and cross-source corroboration.
+6. **Efficiency**: Wall-clock latency (`<= 120s`), total tool latency, LLM call budget consumption (`<= 14`), and resource efficiency ratio.
+
+### Running Automated Evaluations
+
+```powershell
+# 1. Inspect criteria definitions, dimensions, and human rubrics
+python -m eval.criteria
+
+# 2. Inspect declarative scenario suites and projected run counts
+python -m eval.scenarios
+
+# 3. Run the standard Quick Evaluation Suite (5 scenarios, isolated memory)
+python -m eval.runner --suite quick
+
+# 4. Run the complete Full Evaluation Suite (6 scenarios including ablations)
+python -m eval.runner --suite full --yes
+
+# 5. Run a single target scenario (e.g. adversarial recovery or incomplete refusal)
+python -m eval.runner --scenario adversarial
+python -m eval.runner --scenario incomplete
+
+# 6. Re-generate a Markdown scorecard from existing run artifacts offline
+python -m eval.scorecard eval/results/<timestamp>/metrics.json
+```
+
+### Generated Evaluation Artifacts
+
+* `eval/results/<timestamp>/runs/*.json`: Full standalone serialized `Run` records for every executed scenario and repeat.
+* `eval/results/<timestamp>/metrics.json`: Aggregated metrics, per-scenario evaluations, multi-run consistency scores, and baseline delta.
+* `eval/results/<timestamp>/scorecard.md`: Formatted publication-ready evaluation report with automated summary tables, baseline comparisons, and the unfilled human evaluation rubric.
+
+---
+
 ## License
 
 MIT License. Built for the AGENTX24 Autonomous Agents Hackathon.

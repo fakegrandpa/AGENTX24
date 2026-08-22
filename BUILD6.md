@@ -498,3 +498,38 @@ FINAL REPORT REQUIRED
 ---
 
 ## Stage Outcome
+
+### Implementation & Verification Summary
+
+1. **What was built**:
+   - `eval/__init__.py`: Evaluation package entry point.
+   - `eval/criteria.py`: 6 core dimensions (`accuracy`, `task_completion`, `reliability`, `robustness`, `evidence_quality`, `efficiency`), 19 deterministic metric definitions, and a 5-criterion human evaluation rubric.
+   - `eval/metrics.py`: Pure metric derivation functions over serialized `Run` records, multi-run consistency computation, and baseline delta calculations with zero network/runtime imports.
+   - `eval/scenarios.py`: Declarative scenario suite covering normal, ambiguous, incomplete (refusal), adversarial (failure recovery + conflict), and baseline (`graph_off`, `critic_off`) configurations.
+   - `eval/worker.py`: Isolated subprocess scenario worker guaranteeing clean environment variable injection and zero process-level configuration bleed.
+   - `eval/runner.py`: Suite orchestrator with automated memory backup/restoration, temporary checkpoint isolation, sequential execution, and JSON/Scorecard artifact generation.
+   - `eval/scorecard.py`: Standalone Markdown scorecard generator with dimension summaries, per-scenario breakdowns, baseline delta tables, human evaluation rubrics, and explicit epistemic limitation disclosures.
+   - `app/config.py`: Enabled environment variable overrides for `MEMORY_STORAGE_PATH` and `GRAPH_CHECKPOINT_PATH` with default paths preserved identically.
+   - `.gitignore`: Added `eval/results/` to prevent committing generated benchmark runs.
+   - `README.md`: Added Section 21 documenting the evaluation harness, CLI commands, and metric thresholds.
+
+2. **Verification & Observed Results**:
+   - Acceptance Test: `python -m eval.runner --suite quick` executed 6 runs across all 5 scenarios with isolated memory. Output generated at `eval/results/20260822_200129/metrics.json` and `eval/results/20260822_200129/scorecard.md`.
+   - Adversarial Recovery & Conflict Resolution: `adversarial` scenario verified with 8 injected tool failures, 1 injected contradiction, `status="done"`, and `recovery=100.0%`, `conflict_handling=100.0%`.
+   - Refusal Honesty: `incomplete` scenario on fictitious query verified with `unsupported_claim_rate=0.0%` and `refusal_honesty=100.0%`.
+   - Memory Isolation: `data/investigation_memory.json` SHA-256 before suite (`8DAB3ACBE1E6D56806F95D9D938543EF28F6BBBD33D080BB84A94B5EE3197947`) and after suite (`8DAB3ACBE1E6D56806F95D9D938543EF28F6BBBD33D080BB84A94B5EE3197947`) verified byte-for-byte identical.
+   - Offline Generation: `python -m eval.scorecard` re-rendered `scorecard.md` from `metrics.json` with zero network access.
+   - Zero Coupling: `grep app/ for "import eval"` returned 0 results.
+   - Core Flow & Endpoints: `/api/health`, `/`, `/app.css`, `/app.js` all return HTTP 200.
+
+3. **Baseline Comparison (LangGraph ON vs Legacy Baseline OFF)**:
+   - Task Completion: `+40.00%` advantage for LangGraph.
+   - Evidence Harvesting: `+15` verified fragments advantage.
+   - Strategic Signals: `+3` signals advantage.
+   - Evidence Quality: `+48.33%` composite quality advantage.
+
+4. **Deviations & Scope Cuts**: None. Full scope delivered without cuts.
+
+5. **Known Limitations**:
+   - Automated groundedness measures alignment against harvested evidence pool; external primary factuality of upstream web/news sources is outside agent boundary.
+   - Fabrication attempts metric tracks explicitly intercepted and stripped citation markers/links by deterministic report validation filter.

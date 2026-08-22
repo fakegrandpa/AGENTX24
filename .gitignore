@@ -55,6 +55,7 @@ obj/
 # --- Logs & Runtime Data ---
 logs/
 data/
+eval/results/
 *.log
 *.sqlite
 *.sqlite3
