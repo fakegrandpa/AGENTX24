@@ -32,7 +32,7 @@ WEB_DIR = ROOT_DIR / "web"
 app = FastAPI(
     title="AGENTX24 Research & Competitor Tracking Agent",
     description="Autonomous AI Agent for real-time competitor tracking, academic research gathering, and intelligence synthesis",
-    version="1.0.0",
+    version="6.0.0",
 )
 
 app.add_middleware(

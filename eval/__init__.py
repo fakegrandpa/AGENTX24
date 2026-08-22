@@ -5,4 +5,4 @@ across accuracy, task completion, reliability, robustness, evidence quality,
 and resource efficiency.
 """
 
-__version__ = "1.0.0"
+__version__ = "6.0.0"
