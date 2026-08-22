@@ -1,12 +1,11 @@
 /* ==========================================================================
-   AGENTX24 — Autonomous Research Intelligence · client
-   Renders ONLY what the backend reports. No progress, reason, evidence or URL
-   is ever invented here: every value comes from a TelemetryEvent or the Run JSON.
+   AGENTX24 — Autonomous Research & Competitor Intelligence Workspace
+   Client JavaScript Architecture
    ========================================================================== */
 
-const VISIBLE_NODE_CAP = 14;
-const SIGNIFICANCE = { high: "High", important: "Medium", emerging: "Low" };
-const SIGNIFICANCE_CLASS = { high: "high", important: "medium", emerging: "low" };
+const VISIBLE_NODE_CAP = 20;
+const SIGNIFICANCE_LABEL = { high: "HIGH PRIORITY", important: "IMPORTANT", emerging: "EMERGING / WATCH" };
+const SIGNIFICANCE_CLASS = { high: "high", important: "important", emerging: "emerging" };
 
 const state = {
   runId: null,
@@ -14,10 +13,12 @@ const state = {
   clock: null,
   startedAt: 0,
   events: [],
+  evidenceList: [],
   seenEvidence: new Set(),
   toolCalls: 0,
-  evidence: 0,
   showEarlier: false,
+  activeFilter: "all",
+  activeFocus: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -27,9 +28,10 @@ document.addEventListener("DOMContentLoaded", () => {
   wireForm();
   wireExamples();
   wireNavigation();
+  wireEvidenceFilters();
 });
 
-/* ------------------------------------------------------------------ health */
+/* ------------------------------------------------------------------ Health Check */
 
 async function loadHealth() {
   const dot = $("status-dot");
@@ -43,28 +45,38 @@ async function loadHealth() {
     const data = await res.json();
 
     const tools = data.advertised_tools || [];
-    dot.classList.add(data.gemini_ready ? "ok" : "warn");
+    dot.className = `status-dot ${data.gemini_ready ? "ok" : "warn"}`;
     model.textContent = data.gemini_ready ? data.gemini_model : "model unconfigured";
-    sources.textContent = `${tools.length} sources online`;
+    sources.textContent = `${tools.length} tools online`;
     sources.title = tools.join(", ");
-    arrivalTools.textContent = tools.join("  ·  ") || "none";
+
+    if (tools.length && arrivalTools) {
+      arrivalTools.innerHTML = tools.map((t) => {
+        let label = t;
+        if (t === "news_search") label = "news_search (Google News)";
+        else if (t === "research_search") label = "research_search (OpenAlex · arXiv)";
+        else if (t === "web_search") label = "web_search (DuckDuckGo · Wikipedia)";
+        else if (t === "patent_search") label = "patent_search (Google Patents)";
+        return `<span class="tool-pill mono">${label}</span>`;
+      }).join("");
+    }
 
     if (!data.gemini_ready) {
       showFieldError(data.gemini_status_message || "The reasoning model is not configured.");
     }
   } catch (err) {
-    dot.classList.add("down");
+    dot.className = "status-dot down";
     model.textContent = "backend unreachable";
     sources.textContent = "";
-    arrivalTools.textContent = "unavailable";
   }
 }
 
-/* -------------------------------------------------------------- navigation */
+/* ------------------------------------------------------------------ Navigation */
 
 function showScreen(id) {
   ["screen-arrival", "screen-run", "screen-report", "screen-error"].forEach((s) => {
-    $(s).hidden = s !== id;
+    const el = $(s);
+    if (el) el.hidden = s !== id;
   });
   window.scrollTo({ top: 0, behavior: "instant" in window ? "instant" : "auto" });
 }
@@ -77,41 +89,51 @@ function wireNavigation() {
     showScreen("screen-arrival");
     $("target-input").focus();
   };
+
   $("btn-new-run").addEventListener("click", reset);
   $("btn-restart").addEventListener("click", reset);
   $("btn-retry").addEventListener("click", reset);
 
-  $("trace-toggle").addEventListener("click", () => {
-    const runScreen = $("screen-run");
-    const opening = runScreen.hidden;
-    runScreen.hidden = !opening;
-    $("trace-toggle").setAttribute("aria-expanded", String(opening));
-    $("trace-toggle").lastElementChild.textContent = opening ? "Hide decision trace" : "Show decision trace";
-    if (opening) runScreen.scrollIntoView({ behavior: "smooth", block: "start" });
-  });
+  const traceToggle = $("trace-toggle");
+  if (traceToggle) {
+    traceToggle.addEventListener("click", () => {
+      const runScreen = $("screen-run");
+      const isHidden = runScreen.hidden;
+      runScreen.hidden = !isHidden;
+      traceToggle.setAttribute("aria-expanded", String(isHidden));
+      traceToggle.querySelector("span").textContent = isHidden ? "Hide Decision Trace" : "Inspect Decision Trace";
+      if (isHidden) runScreen.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
 }
 
-/* -------------------------------------------------------------- input form */
+/* ------------------------------------------------------------------ Input Form & Starters */
 
 function wireExamples() {
-  $("examples").querySelectorAll(".example-chip").forEach((chip) => {
+  $("examples").querySelectorAll(".fragment-chip").forEach((chip) => {
     chip.addEventListener("click", () => {
       const input = $("target-input");
       input.value = chip.dataset.q;
       clearFieldError();
       input.focus();
+      // Auto-trigger on chip click for immediate discovery
+      startInvestigation(chip.dataset.q);
     });
   });
 }
 
 function showFieldError(message) {
-  $("input-error").textContent = message;
-  $("input-row").classList.add("invalid");
+  const errEl = $("input-error");
+  const shellEl = $("input-shell");
+  if (errEl) errEl.textContent = message;
+  if (shellEl) shellEl.classList.add("invalid");
 }
 
 function clearFieldError() {
-  $("input-error").textContent = "";
-  $("input-row").classList.remove("invalid");
+  const errEl = $("input-error");
+  const shellEl = $("input-shell");
+  if (errEl) errEl.textContent = "";
+  if (shellEl) shellEl.classList.remove("invalid");
 }
 
 function wireForm() {
@@ -124,7 +146,7 @@ function wireForm() {
     e.preventDefault();
     const query = input.value.trim();
     if (query.length < 3) {
-      showFieldError("Enter at least 3 characters describing what to investigate.");
+      showFieldError("Please enter at least 3 characters describing what you want to investigate.");
       input.focus();
       return;
     }
@@ -133,27 +155,34 @@ function wireForm() {
   });
 }
 
-/* ---------------------------------------------------------------- run flow */
+/* ------------------------------------------------------------------ Live Run Lifecycle */
 
 async function startInvestigation(query) {
   state.events = [];
+  state.evidenceList = [];
   state.seenEvidence = new Set();
   state.toolCalls = 0;
-  state.evidence = 0;
   state.showEarlier = false;
+  state.activeFilter = "all";
   state.startedAt = Date.now();
 
-  $("run-target").textContent = query;
+  $("run-target-heading").textContent = query;
+  $("run-id-label").textContent = "initializing…";
   $("timeline").innerHTML = "";
   $("evidence-list").innerHTML = "";
-  $("evidence-count").textContent = "0";
+  $("evidence-count").textContent = "0 items";
   $("evidence-placeholder").hidden = false;
   $("timeline-count").textContent = "0 steps";
-  $("metric-calls").textContent = "0 tool calls";
-  $("metric-sources").textContent = "0 sources";
+  $("metric-calls").textContent = "0";
+  $("metric-sources").textContent = "0";
   $("earlier-toggle").hidden = true;
-  $("trace-toggle").setAttribute("aria-expanded", "false");
-  $("trace-toggle").lastElementChild.textContent = "Show decision trace";
+
+  updateFocusBanner({
+    phase: "INITIALIZING",
+    title: `Understanding objective: "${query}"`,
+    query: null,
+    reason: "Identifying knowledge gaps and preparing external tool registry."
+  });
 
   showScreen("screen-run");
   startClock();
@@ -164,16 +193,19 @@ async function startInvestigation(query) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
     });
+
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      throw new Error(body.detail || `Server rejected the request (HTTP ${res.status}).`);
+      throw new Error(body.detail || `Server error (HTTP ${res.status}).`);
     }
+
     const data = await res.json();
     state.runId = data.run_id;
+    $("run-id-label").textContent = data.run_id;
     openStream(data.run_id);
   } catch (err) {
     stopClock();
-    showError(err.message, "Confirm the backend is running on 127.0.0.1:8000.");
+    showError(err.message, "Verify the backend server is running on port 8000.");
   }
 }
 
@@ -187,10 +219,13 @@ function tickClock() {
   const s = Math.floor((Date.now() - state.startedAt) / 1000);
   const mm = String(Math.floor(s / 60)).padStart(2, "0");
   const ss = String(s % 60).padStart(2, "0");
-  $("metric-clock").textContent = `${mm}:${ss}`;
+  const clockEl = $("metric-clock");
+  if (clockEl) clockEl.textContent = `${mm}:${ss}`;
 }
 
-function stopClock() { clearInterval(state.clock); }
+function stopClock() {
+  clearInterval(state.clock);
+}
 
 function stopStream() {
   if (state.source) {
@@ -207,80 +242,131 @@ function openStream(runId) {
   state.source.onmessage = async (msg) => {
     if (msg.data.includes('"stream_end"')) {
       stopStream();
-      await finalize(runId);
+      await finalizeRun(runId);
       return;
     }
+
     try {
       const ev = JSON.parse(msg.data);
       state.events.push(ev);
+      processTelemetryEvent(ev);
       renderTimeline();
-      if (ev.data && typeof ev.data.total_evidence === "number") {
-        // fall through to the authoritative refresh below
+
+      if (ev.kind === "tool_result" || ev.kind === "note") {
+        refreshEvidence(runId);
       }
-      if (ev.kind === "tool_result" || ev.kind === "note") refreshEvidence(runId);
     } catch (err) {
-      console.error("telemetry parse failed", err);
+      console.error("Failed to parse telemetry event", err);
     }
   };
 
-  // A dropped stream is not automatically a failure: ask the server what happened.
   state.source.onerror = async () => {
     stopStream();
     try {
       const res = await fetch(`/api/run/${runId}`);
-      if (!res.ok) throw new Error("run unavailable");
+      if (!res.ok) throw new Error("Run state unavailable");
       const run = await res.json();
-      if (run.status === "done") renderReport(run);
-      else if (run.status === "error") showError(run.limitations[0] || "The investigation failed.", "See the server log for detail.");
+      if (run.status === "done") {
+        renderReport(run);
+      } else if (run.status === "error") {
+        showError(run.limitations[0] || "Investigation failed.", "See server logs for details.");
+      }
     } catch (err) {
-      showError("Lost connection to the investigation stream.", "The backend may have stopped.");
+      showError("Connection to intelligence stream lost.", "The backend may have stopped.");
     }
   };
 }
 
-async function finalize(runId) {
+async function finalizeRun(runId) {
   try {
     const res = await fetch(`/api/run/${runId}`);
-    if (!res.ok) throw new Error("Could not load the completed run.");
+    if (!res.ok) throw new Error("Could not load completed run.");
     const run = await res.json();
     if (run.status === "error") {
-      showError(run.limitations[0] || "The investigation failed.", "No verifiable evidence was produced.");
+      showError(run.limitations[0] || "The investigation encountered an error.", "No verifiable evidence produced.");
       return;
     }
     renderReport(run);
   } catch (err) {
-    showError(err.message, "Reload the page and try again.");
+    showError(err.message, "Reload and try again.");
   }
 }
 
-/* ------------------------------------------------------- timeline renderer */
+/* ------------------------------------------------------------------ Agent Focus Banner */
 
-function nodeVariant(ev) {
-  if (ev.kind === "error") return "is-error";
-  if (ev.kind === "tool_selected") return "is-tool";
-  if (ev.kind === "tool_result") return "is-result";
-  if (ev.phase === "Identifying knowledge gaps") return "is-gap";
-  if (ev.phase === "Source unavailable" || ev.phase === "No results for that angle") return "is-warn";
-  return "";
+function processTelemetryEvent(ev) {
+  const d = ev.data || {};
+  let phaseTag = "REASONING";
+  let title = ev.text || ev.phase;
+  let query = d.query || null;
+  let reason = d.reason || ev.detail || null;
+
+  if (ev.kind === "tool_selected") {
+    phaseTag = "TOOL EXECUTION";
+    title = `Dispatching ${d.tool || "tool"}`;
+  } else if (ev.kind === "tool_result") {
+    phaseTag = "ANALYZING EVIDENCE";
+    title = `Processed findings from ${d.tool || "tool"}`;
+  } else if (ev.phase === "Identifying knowledge gaps") {
+    phaseTag = "GAP DETECTED";
+    title = "Formulating next inquiry angle";
+  } else if (ev.phase === "Generating intelligence report") {
+    phaseTag = "SYNTHESIS";
+    title = "Synthesizing evidence into prioritized intelligence brief";
+  }
+
+  updateFocusBanner({
+    phase: phaseTag,
+    title: title,
+    query: query,
+    reason: reason,
+  });
 }
 
-function nodeTitle(ev) {
-  switch (ev.kind) {
-    case "objective": return "Investigation defined";
-    case "tool_selected": return null;           // rendered with a tool chip
-    case "tool_result": return "Analyzed returned evidence";
-    default: return ev.phase;
+function updateFocusBanner({ phase, title, query, reason }) {
+  $("focus-phase-tag").textContent = phase;
+  $("focus-activity-title").textContent = title;
+
+  const now = new Date();
+  $("focus-timestamp").textContent = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+
+  const queryRow = $("focus-detail-row");
+  const queryEl = $("focus-query");
+  if (query) {
+    queryEl.textContent = query;
+    queryRow.hidden = false;
+  } else {
+    queryRow.hidden = true;
+  }
+
+  const reasonEl = $("focus-reason");
+  if (reason) {
+    reasonEl.textContent = reason;
+    reasonEl.hidden = false;
+  } else {
+    reasonEl.hidden = true;
   }
 }
 
-function buildNode(ev, isLast) {
+/* ------------------------------------------------------------------ Timeline Renderer */
+
+function getNodeClasses(ev, isLast) {
+  const classes = ["timeline-node"];
+  if (isLast) classes.push("is-active");
+  if (ev.kind === "tool_selected") classes.push("is-tool");
+  else if (ev.kind === "tool_result") classes.push("is-result");
+  else if (ev.phase === "Identifying knowledge gaps") classes.push("is-gap");
+  else if (ev.kind === "error") classes.push("is-error");
+  return classes.join(" ");
+}
+
+function buildTimelineNode(ev, isLast) {
   const li = document.createElement("li");
-  li.className = `node ${nodeVariant(ev)}`.trim();
-  if (isLast) li.classList.add("is-active");
+  li.className = getNodeClasses(ev, isLast);
 
-  const step = document.createElement("div");
-  step.className = "node-step";
-  step.textContent = String(ev.seq).padStart(2, "0");
+  const seq = document.createElement("div");
+  seq.className = "node-seq mono";
+  seq.textContent = String(ev.seq).padStart(2, "0");
 
   const rail = document.createElement("div");
   rail.className = "node-rail";
@@ -288,65 +374,79 @@ function buildNode(ev, isLast) {
   dot.className = "node-dot";
   rail.appendChild(dot);
 
-  const body = document.createElement("div");
+  const content = document.createElement("div");
+  content.className = "node-content";
 
-  const title = document.createElement("div");
+  const titleRow = document.createElement("div");
+  titleRow.className = "node-title-row";
+
+  const title = document.createElement("span");
   title.className = "node-title";
+
   const d = ev.data || {};
-
   if (ev.kind === "tool_selected") {
-    title.append(document.createTextNode("Selected "));
-    const tool = document.createElement("span");
-    tool.className = "node-tool";
-    tool.textContent = d.tool || "tool";
-    title.appendChild(tool);
+    title.textContent = "Selected ";
+    const toolTag = document.createElement("span");
+    toolTag.className = "node-tool-tag mono";
+    toolTag.textContent = d.tool || "tool";
+    title.appendChild(toolTag);
+  } else if (ev.kind === "tool_result") {
+    title.textContent = `Evidence received (${d.new_evidence ?? "?"} items)`;
+  } else if (ev.kind === "objective") {
+    title.textContent = "Investigation initiated";
   } else {
-    title.textContent = nodeTitle(ev);
+    title.textContent = ev.phase;
   }
-  body.appendChild(title);
 
-  // Machine facts, straight from telemetry
+  titleRow.appendChild(title);
+  content.appendChild(titleRow);
+
+  // Machine facts & reasoning directly from telemetry
   if (ev.kind === "tool_selected") {
     const kv = document.createElement("div");
-    kv.className = "kv";
-    if (d.query) kv.append(kvKey("Query"), kvValue(d.query, "kv-query"));
-    if (d.reason) kv.append(kvKey("Reason"), kvValue(d.reason, "kv-reason"));
-    if (kv.childElementCount) body.appendChild(kv);
+    kv.className = "node-meta-kv";
+
+    if (d.query) {
+      const qLbl = document.createElement("span");
+      qLbl.className = "node-kv-label";
+      qLbl.textContent = "QUERY";
+      const qVal = document.createElement("span");
+      qVal.className = "node-kv-query mono";
+      qVal.textContent = d.query;
+      kv.append(qLbl, qVal);
+    }
+
+    if (d.reason) {
+      const rLbl = document.createElement("span");
+      rLbl.className = "node-kv-label";
+      rLbl.textContent = "WHY";
+      const rVal = document.createElement("span");
+      rVal.className = "node-kv-reason";
+      rVal.textContent = d.reason;
+      kv.append(rLbl, rVal);
+    }
+
+    content.appendChild(kv);
   } else if (ev.phase === "Identifying knowledge gaps" && d.reason) {
     const kv = document.createElement("div");
-    kv.className = "kv";
-    kv.append(kvKey("Gap"), kvValue(d.reason, "kv-reason"));
-    body.appendChild(kv);
+    kv.className = "node-meta-kv";
+    const gLbl = document.createElement("span");
+    gLbl.className = "node-kv-label";
+    gLbl.textContent = "GAP";
+    const gVal = document.createElement("span");
+    gVal.className = "node-kv-reason";
+    gVal.textContent = d.reason;
+    kv.append(gLbl, gVal);
+    content.appendChild(kv);
   } else if (ev.detail) {
     const note = document.createElement("div");
-    note.className = "node-note";
+    note.className = "node-detail-note";
     note.textContent = ev.detail;
-    body.appendChild(note);
+    content.appendChild(note);
   }
 
-  if (ev.kind === "tool_result" && typeof d.new_evidence === "number") {
-    const note = document.createElement("div");
-    note.className = "node-note";
-    note.textContent = `${d.new_evidence} new · ${d.total_evidence ?? "?"} total sources`;
-    body.appendChild(note);
-  }
-
-  li.append(step, rail, body);
+  li.append(seq, rail, content);
   return li;
-}
-
-function kvKey(label) {
-  const el = document.createElement("div");
-  el.className = "kv-key";
-  el.textContent = label;
-  return el;
-}
-
-function kvValue(text, cls) {
-  const el = document.createElement("div");
-  el.className = cls;
-  el.textContent = text;
-  return el;
 }
 
 function renderTimeline() {
@@ -364,310 +464,439 @@ function renderTimeline() {
     toggle.textContent = state.showEarlier
       ? `Hide earlier steps (${hiddenCount})`
       : `Show earlier steps (${hiddenCount})`;
-    toggle.onclick = () => { state.showEarlier = !state.showEarlier; renderTimeline(); };
+    toggle.onclick = () => {
+      state.showEarlier = !state.showEarlier;
+      renderTimeline();
+    };
   } else {
     toggle.hidden = true;
   }
 
   list.innerHTML = "";
-  shown.forEach((ev, i) => list.appendChild(buildNode(ev, i === shown.length - 1)));
+  shown.forEach((ev, i) => list.appendChild(buildTimelineNode(ev, i === shown.length - 1)));
 
-  // Live counters, derived from real events only
   state.toolCalls = events.filter((e) => e.kind === "tool_selected").length;
-  $("metric-calls").textContent = `${state.toolCalls} tool call${state.toolCalls === 1 ? "" : "s"}`;
+  $("metric-calls").textContent = String(state.toolCalls);
 }
 
-/* ------------------------------------------------------- evidence renderer */
+/* ------------------------------------------------------------------ Evidence Fragments Board */
+
+function wireEvidenceFilters() {
+  const bar = $("evidence-filter-bar");
+  if (!bar) return;
+
+  bar.querySelectorAll(".ev-filter").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      bar.querySelectorAll(".ev-filter").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.activeFilter = btn.dataset.filter;
+      renderFilteredEvidence();
+    });
+  });
+}
 
 async function refreshEvidence(runId) {
   try {
     const res = await fetch(`/api/run/${runId}`);
     if (!res.ok) return;
     const run = await res.json();
-    const list = $("evidence-list");
+    state.evidenceList = run.evidence || [];
 
-    (run.evidence || []).forEach((ev) => {
-      if (state.seenEvidence.has(ev.id)) return;
-      state.seenEvidence.add(ev.id);
-      list.prepend(evidenceItem(ev));
-    });
+    const total = state.evidenceList.length;
+    $("evidence-count").textContent = `${total} item${total === 1 ? "" : "s"}`;
+    $("metric-sources").textContent = String(total);
+    $("evidence-placeholder").hidden = total > 0;
 
-    state.evidence = (run.evidence || []).length;
-    $("evidence-count").textContent = String(state.evidence);
-    $("metric-sources").textContent = `${state.evidence} source${state.evidence === 1 ? "" : "s"}`;
-    $("evidence-placeholder").hidden = state.evidence > 0;
+    renderFilteredEvidence();
   } catch (err) {
-    /* transient; the authoritative fetch happens again at completion */
+    // transient
   }
 }
 
-function evidenceItem(ev) {
-  const li = document.createElement("li");
-  li.className = "evidence-item";
+function renderFilteredEvidence() {
+  const list = $("evidence-list");
+  if (!list) return;
+  list.innerHTML = "";
 
-  const top = document.createElement("div");
-  top.className = "evidence-top";
+  const filter = state.activeFilter;
+  const filtered = state.evidenceList.filter((ev) => {
+    if (filter === "all") return true;
+    const kind = (ev.provider_kind || ev.tool || "").toLowerCase();
+    return kind.includes(filter);
+  });
 
-  const id = document.createElement("span");
-  id.className = "ev-id";
-  id.textContent = ev.id;
+  filtered.slice().reverse().forEach((ev) => {
+    list.appendChild(createEvidenceFragmentElement(ev));
+  });
+}
+
+function createEvidenceFragmentElement(ev) {
+  const card = document.createElement("li");
+  card.className = "evidence-fragment";
+  card.id = `live-ev-${ev.id}`;
+
+  const header = document.createElement("div");
+  header.className = "ev-header";
+
+  const badge = document.createElement("span");
+  badge.className = "ev-badge mono";
+  badge.textContent = ev.id;
 
   const src = document.createElement("span");
-  src.className = "ev-src";
+  src.className = "ev-source";
   src.textContent = ev.published ? `${ev.source} · ${ev.published}` : ev.source;
 
   const tool = document.createElement("span");
-  tool.className = "ev-tool";
+  tool.className = "ev-tool-tag mono";
   tool.textContent = ev.tool;
 
-  top.append(id, src, tool);
+  header.append(badge, src, tool);
 
-  const title = document.createElement("div");
-  title.className = "ev-title";
-  title.textContent = ev.title;
+  const titleDiv = document.createElement("div");
+  titleDiv.className = "ev-title-text";
 
-  li.append(top, title);
-  return li;
+  if (ev.url) {
+    const link = document.createElement("a");
+    link.href = ev.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.className = "ev-title-link";
+    link.textContent = ev.title;
+    titleDiv.appendChild(link);
+  } else {
+    titleDiv.textContent = ev.title;
+  }
+
+  card.append(header, titleDiv);
+
+  // Expandable Snippet
+  if (ev.snippet || (ev.authors && ev.authors.length)) {
+    const expandBtn = document.createElement("button");
+    expandBtn.type = "button";
+    expandBtn.className = "ev-expand-btn";
+    expandBtn.innerHTML = `<span>Inspect Snippet</span>`;
+
+    const snippetBody = document.createElement("div");
+    snippetBody.className = "ev-snippet-body";
+    snippetBody.hidden = true;
+
+    let metaInfo = "";
+    if (ev.authors && ev.authors.length) {
+      metaInfo += `<strong>Authors:</strong> ${ev.authors.slice(0, 4).join(", ")}<br>`;
+    }
+    if (ev.snippet) {
+      metaInfo += `<p>${ev.snippet}</p>`;
+    }
+    snippetBody.innerHTML = metaInfo;
+
+    expandBtn.addEventListener("click", () => {
+      const isExpanded = !snippetBody.hidden;
+      snippetBody.hidden = isExpanded;
+      card.classList.toggle("expanded", !isExpanded);
+      expandBtn.querySelector("span").textContent = isExpanded ? "Inspect Snippet" : "Close Snippet";
+    });
+
+    card.append(expandBtn, snippetBody);
+  }
+
+  return card;
 }
 
-/* --------------------------------------------------------- report renderer */
+/* ------------------------------------------------------------------ Report Renderer */
 
 function renderReport(run) {
   const report = run.report;
   if (!report) {
-    showError("No report was produced for this investigation.", "Try a different objective.");
+    showError("No report produced for this investigation.", "Please enter a specific target.");
     return;
   }
 
   showScreen("screen-report");
   $("screen-run").hidden = true;
-  $("report-target").textContent = run.query;
+  $("report-target-heading").textContent = run.query;
 
   const elapsed = Math.max(1, Math.round((Date.now() - state.startedAt) / 1000));
   const toolsUsed = [...new Set((run.tool_calls || []).map((t) => t.name))];
-  $("trace-summary").textContent =
-    `${state.events.length} steps · ${(run.tool_calls || []).length} tool calls · ` +
-    `${toolsUsed.length} sources · ${(run.evidence || []).length} evidence · ${elapsed}s`;
+  const evidenceCount = (run.evidence || []).length;
+
+  $("trace-summary-steps").textContent = `${state.events.length} steps`;
+  $("trace-summary-evidence").textContent = `${evidenceCount} verified fragments`;
+  $("trace-summary-tools").textContent = `${toolsUsed.length} external tools`;
+  $("trace-summary-time").textContent = `${elapsed}s wall-clock`;
 
   const validIds = new Set((run.evidence || []).map((e) => e.id));
 
-  // Executive intelligence
-  $("report-summary").innerHTML = withCitations(report.summary, validIds);
+  // Executive Summary
+  $("report-summary").innerHTML = formatTextWithCitations(report.summary, validIds);
 
-  // Key signals
+  // Key Prioritized Signals
   const signalsHost = $("report-signals");
   signalsHost.innerHTML = "";
   const signals = report.signals || [];
   if (signals.length) {
-    signals.forEach((sig) => signalsHost.appendChild(signalCard(sig, validIds)));
+    signals.forEach((sig) => signalsHost.appendChild(createSignalElement(sig, validIds)));
   } else {
-    signalsHost.innerHTML = `<p class="placeholder">The agent did not extract distinct prioritized signals for this investigation.</p>`;
+    signalsHost.innerHTML = `<p class="prose">Autonomous reasoning assembled verified sources without distinct strategic signal tiers.</p>`;
   }
 
-  // Adaptive sections — rendered only when the backend supplied content
-  const sectionsHost = $("report-sections");
-  sectionsHost.innerHTML = "";
-  const sectionMap = [
-    ["competitor_industry", "Competitive implications"],
-    ["research", "Research signals"],
-    ["patents", "Patent signals"],
-    ["recent_developments", "Recent developments"],
-    ["why_it_matters", "Why this matters"],
+  // Dynamic Deep-Dive Sections
+  const dynamicHost = $("report-dynamic-sections");
+  dynamicHost.innerHTML = "";
+  const sectionDefs = [
+    ["competitor_industry", "03 / COMPETITIVE & INDUSTRY ACTIVITY"],
+    ["research", "04 / KEY RESEARCH & SCIENTIFIC DEVELOPMENTS"],
+    ["patents", "05 / PATENT & IP LANDSCAPE"],
+    ["recent_developments", "06 / RECENT TIMELINE & STRATEGIC SHIFTS"],
+    ["why_it_matters", "07 / STRATEGIC IMPLICATIONS & WHY THIS MATTERS"],
   ];
+
   const sections = report.sections || {};
-  sectionMap.forEach(([key, label]) => {
-    const value = sections[key];
-    if (!value || !String(value).trim()) return;
-    const block = document.createElement("div");
-    block.className = "block";
-    const head = document.createElement("h2");
-    head.className = "block-head";
-    head.textContent = label;
+  sectionDefs.forEach(([key, title]) => {
+    const val = sections[key];
+    if (!val || !String(val).trim()) return;
+
+    const secEl = document.createElement("section");
+    secEl.className = "report-section";
+
+    const badgeRow = document.createElement("div");
+    badgeRow.className = "section-badge-row";
+    const tag = document.createElement("span");
+    tag.className = "section-tag";
+    tag.textContent = title;
+    badgeRow.appendChild(tag);
+
     const prose = document.createElement("div");
     prose.className = "prose";
-    prose.innerHTML = withCitations(value, validIds);
-    block.append(head, prose);
-    sectionsHost.appendChild(block);
+    prose.innerHTML = formatTextWithCitations(val, validIds);
+
+    secEl.append(badgeRow, prose);
+    dynamicHost.appendChild(secEl);
   });
 
-  // Recommended next actions
+  // Recommended Next Actions
   const actions = report.next_actions || [];
-  $("block-actions").hidden = actions.length === 0;
+  const actionsSec = $("sec-actions");
+  actionsSec.hidden = actions.length === 0;
   const actionsHost = $("report-actions");
   actionsHost.innerHTML = "";
-  actions.forEach((a) => {
+  actions.forEach((act, idx) => {
     const li = document.createElement("li");
-    li.innerHTML = withCitations(a, validIds);
+    li.className = "action-item";
+    li.innerHTML = `<span class="action-num mono">${idx + 1}</span><span>${formatTextWithCitations(act, validIds)}</span>`;
     actionsHost.appendChild(li);
   });
 
-  // Knowledge gaps & limitations
+  // Limitations & Gaps
   const limits = report.limitations || [];
-  $("block-limitations").hidden = limits.length === 0;
+  const limitsSec = $("sec-limitations");
+  limitsSec.hidden = limits.length === 0;
   const limitsHost = $("report-limitations");
   limitsHost.innerHTML = "";
-  limits.forEach((l) => {
+  limits.forEach((lim) => {
     const li = document.createElement("li");
-    li.textContent = l;
+    li.className = "limitation-item";
+    li.textContent = lim;
     limitsHost.appendChild(li);
   });
 
-  renderCoverage(run, toolsUsed);
-  renderSources(run);
-  wireCitations();
+  renderCoverageProvenance(run, toolsUsed);
+  renderSourcesIndex(run);
+  wireCitationInteractions();
 }
 
-function signalCard(sig, validIds) {
-  const card = document.createElement("article");
-  card.className = "signal";
+function createSignalElement(sig, validIds) {
+  const card = document.createElement("div");
+  const tierCls = SIGNIFICANCE_CLASS[sig.tier] || "important";
+  card.className = `signal-card tier-${tierCls}`;
 
-  const top = document.createElement("div");
-  top.className = "signal-top";
+  const header = document.createElement("div");
+  header.className = "signal-header";
 
   const badge = document.createElement("span");
-  badge.className = `sig-badge ${SIGNIFICANCE_CLASS[sig.tier] || "low"}`;
-  badge.textContent = SIGNIFICANCE[sig.tier] || sig.tier;
+  badge.className = `signal-tier-badge ${tierCls} mono`;
+  badge.textContent = SIGNIFICANCE_LABEL[sig.tier] || sig.tier;
 
   const headline = document.createElement("h3");
-  headline.className = "signal-headline";
+  headline.className = "signal-headline-text";
   headline.textContent = sig.headline;
 
-  top.append(badge, headline);
+  header.append(badge, headline);
 
-  const detail = document.createElement("div");
-  detail.className = "signal-detail prose";
-  detail.innerHTML = withCitations(sig.detail, validIds);
+  const body = document.createElement("div");
+  body.className = "signal-body-text";
+  body.innerHTML = formatTextWithCitations(sig.detail, validIds);
 
-  card.append(top, detail);
+  card.append(header, body);
   return card;
 }
 
-function renderCoverage(run, toolsUsed) {
-  const stats = [
-    [(run.evidence || []).length, "Evidence items"],
-    [toolsUsed.length, "Sources used"],
-    [(run.tool_calls || []).length, "Tool calls"],
-  ];
-  const host = $("coverage-stats");
-  host.innerHTML = "";
-  stats.forEach(([value, label]) => {
-    const box = document.createElement("div");
-    box.className = "stat";
-    const v = document.createElement("div");
-    v.className = "stat-value";
-    v.textContent = String(value);
-    const l = document.createElement("div");
-    l.className = "stat-label";
-    l.textContent = label;
-    box.append(v, l);
-    host.appendChild(box);
+function renderCoverageProvenance(run, toolsUsed) {
+  const evidence = run.evidence || [];
+  const total = evidence.length;
+
+  // Breakdown by kind
+  const counts = { news: 0, research: 0, patent: 0, web: 0 };
+  evidence.forEach((ev) => {
+    const k = (ev.provider_kind || ev.tool || "").toLowerCase();
+    if (k.includes("news")) counts.news++;
+    else if (k.includes("research")) counts.research++;
+    else if (k.includes("patent")) counts.patent++;
+    else counts.web++;
   });
 
-  // Per-tool breakdown, computed from the real run record
-  const list = $("coverage-list");
-  list.innerHTML = "";
+  // Visual Distribution Bar
+  const bar = $("coverage-distribution-bar");
+  const legend = $("coverage-legend");
+  bar.innerHTML = "";
+  legend.innerHTML = "";
+
+  if (total > 0) {
+    const kinds = [
+      { key: "news", label: "News", count: counts.news, cls: "seg-news" },
+      { key: "research", label: "Research", count: counts.research, cls: "seg-research" },
+      { key: "patent", label: "Patents", count: counts.patent, cls: "seg-patent" },
+      { key: "web", label: "Web", count: counts.web, cls: "seg-web" },
+    ];
+
+    kinds.forEach((k) => {
+      if (k.count > 0) {
+        const pct = ((k.count / total) * 100).toFixed(1);
+        const seg = document.createElement("div");
+        seg.className = `coverage-segment ${k.cls}`;
+        seg.style.width = `${pct}%`;
+        seg.title = `${k.label}: ${k.count} (${pct}%)`;
+        bar.appendChild(seg);
+
+        const legItem = document.createElement("div");
+        legItem.className = "legend-item";
+        legItem.innerHTML = `<span class="legend-dot ${k.cls}"></span><span>${k.label}: <strong>${k.count}</strong></span>`;
+        legend.appendChild(legItem);
+      }
+    });
+  }
+
+  // Summary Stat Boxes
+  const statsHost = $("coverage-stats");
+  statsHost.innerHTML = "";
+  const statsData = [
+    [total, "EVIDENCE ITEMS"],
+    [toolsUsed.length, "EXTERNAL TOOLS"],
+    [(run.tool_calls || []).length, "TOOL CALLS"],
+  ];
+
+  statsData.forEach(([val, lbl]) => {
+    const box = document.createElement("div");
+    box.className = "stat-box";
+    box.innerHTML = `<div class="stat-val mono">${val}</div><div class="stat-tag">${lbl}</div>`;
+    statsHost.appendChild(box);
+  });
+
+  // Per-Tool Breakdown Rows
+  const provList = $("coverage-list");
+  provList.innerHTML = "";
   toolsUsed.forEach((tool) => {
     const calls = (run.tool_calls || []).filter((t) => t.name === tool);
-    const items = (run.evidence || []).filter((e) => e.tool === tool).length;
-    const failed = calls.filter((c) => !c.ok).length;
+    const count = evidence.filter((e) => e.tool === tool).length;
 
     const row = document.createElement("li");
-    row.className = "coverage-row";
-
-    const name = document.createElement("span");
-    name.className = "mono";
-    name.textContent = tool;
-
-    const detail = document.createElement("span");
-    detail.textContent = `${calls.length} call${calls.length === 1 ? "" : "s"} · ${items} evidence item${items === 1 ? "" : "s"}`;
-
-    const status = document.createElement("span");
-    status.className = "spacer";
-    status.textContent = failed ? `${failed} failed` : "ok";
-
-    row.append(name, detail, status);
-    list.appendChild(row);
+    row.className = "coverage-prov-row";
+    row.innerHTML = `
+      <span class="prov-name mono">${tool}</span>
+      <span class="mono">${calls.length} call${calls.length === 1 ? "" : "s"} · ${count} fragment${count === 1 ? "" : "s"}</span>
+    `;
+    provList.appendChild(row);
   });
 }
 
-function renderSources(run) {
+function renderSourcesIndex(run) {
   const host = $("report-sources");
   host.innerHTML = "";
   const evidence = run.evidence || [];
 
   if (!evidence.length) {
-    host.innerHTML = `<p class="placeholder">No verifiable sources were returned by the tools the agent selected.</p>`;
+    host.innerHTML = `<li class="source-index-row"><span class="source-main-title">No verifiable sources returned.</span></li>`;
     return;
   }
 
   evidence.forEach((ev) => {
     const li = document.createElement("li");
-    li.className = "source-row";
+    li.className = "source-index-row";
     li.id = `source-${ev.id}`;
 
-    const id = document.createElement("span");
-    id.className = "source-id";
-    id.textContent = `[${ev.id}]`;
+    const idSpan = document.createElement("span");
+    idSpan.className = "source-anchor-id mono";
+    idSpan.textContent = `[${ev.id}]`;
 
-    const body = document.createElement("div");
+    const infoCol = document.createElement("div");
+    infoCol.className = "source-info-col";
 
-    const title = document.createElement("div");
-    title.className = "source-title";
+    const titleDiv = document.createElement("div");
+    titleDiv.className = "source-main-title";
+
     if (ev.url) {
       const link = document.createElement("a");
-      link.href = ev.url;                    // only ever an evidence-store URL
+      link.href = ev.url;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
       link.textContent = ev.title;
-      title.appendChild(link);
+      titleDiv.appendChild(link);
     } else {
-      title.textContent = ev.title;
+      titleDiv.textContent = ev.title;
     }
 
-    const meta = document.createElement("div");
-    meta.className = "source-meta";
+    const metaDiv = document.createElement("div");
+    metaDiv.className = "source-provenance-meta mono";
     const parts = [ev.source];
     if (ev.published) parts.push(ev.published);
     if (ev.authors && ev.authors.length) parts.push(ev.authors.slice(0, 3).join(", "));
     parts.push(ev.tool);
-    meta.textContent = parts.join(" · ");
+    metaDiv.textContent = parts.join(" · ");
 
-    body.append(title, meta);
-    li.append(id, body);
+    infoCol.append(titleDiv, metaDiv);
+
+    if (ev.snippet) {
+      const snippetP = document.createElement("p");
+      snippetP.className = "source-snippet-text";
+      snippetP.textContent = ev.snippet;
+      infoCol.appendChild(snippetP);
+    }
+
+    li.append(idSpan, infoCol);
     host.appendChild(li);
   });
 }
 
-/* ------------------------------------------------- citations & escaping */
+/* ------------------------------------------------------------------ Citations & Interactive Anchoring */
 
-function withCitations(raw, validIds) {
+function formatTextWithCitations(raw, validIds) {
   if (!raw) return "";
   const escaped = String(raw)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
-  // Only markers that resolve to a real evidence record become links.
   return escaped.replace(/\[(E\d+)\]/g, (match, id) => {
     if (!validIds.has(id)) return "";
-    return `<a href="#source-${id}" class="citation" data-target="source-${id}">[${id}]</a>`;
+    return `<a href="#source-${id}" class="citation mono" data-target="source-${id}">[${id}]</a>`;
   });
 }
 
-function wireCitations() {
+function wireCitationInteractions() {
   document.querySelectorAll(".citation").forEach((chip) => {
     chip.addEventListener("click", (e) => {
       e.preventDefault();
-      const target = document.getElementById(chip.dataset.target);
-      if (!target) return;
-      target.scrollIntoView({ behavior: "smooth", block: "center" });
-      target.classList.add("flash");
-      setTimeout(() => target.classList.remove("flash"), 1400);
+      const targetId = chip.dataset.target;
+      const targetEl = document.getElementById(targetId);
+      if (!targetEl) return;
+
+      targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      targetEl.classList.add("flash");
+      setTimeout(() => targetEl.classList.remove("flash"), 1600);
     });
   });
 }
 
-/* ---------------------------------------------------------------- errors */
+/* ------------------------------------------------------------------ Error State */
 
 function showError(message, hint) {
   stopStream();
