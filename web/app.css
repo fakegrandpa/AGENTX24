@@ -1597,3 +1597,52 @@ button:disabled {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ----------------------------------------------------------- Stage 3 — Multi-Agent Badges & Critique Nodes */
+
+.node-agent-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  margin-right: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-subtle);
+  color: var(--text-tertiary);
+  vertical-align: middle;
+}
+
+.node-agent-badge.agent-investigator {
+  color: var(--accent);
+  background: var(--accent-subtle);
+  border-color: var(--accent-border);
+}
+
+.node-agent-badge.agent-critic {
+  color: var(--signal-emerge);
+  background: var(--signal-emerge-bg);
+  border-color: var(--signal-emerge-border);
+}
+
+.node-agent-badge.agent-synthesist {
+  color: var(--status-ok);
+  background: var(--status-ok-bg);
+  border-color: var(--line);
+}
+
+.timeline-node.is-critic .node-dot {
+  background: var(--signal-emerge);
+  border-color: var(--signal-emerge-border);
+}
+
+.timeline-node.is-synthesist .node-dot {
+  background: var(--status-ok);
+  border-color: var(--line);
+}
+
+.agent-pill {
+  border-color: var(--accent-border) !important;
+  background: var(--surface) !important;
+}

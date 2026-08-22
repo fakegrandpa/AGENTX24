@@ -47,63 +47,63 @@ Results and live agent activity are displayed in the dashboard
 
 ---
 
+## Multi-Agent Architecture (Stage 3)
+
+AGENTX24 employs a **multi-agent architecture with separated powers** orchestrated via a bidirectional ReAct loop:
+
+```
+User investigation request
+        ↓
+[Lead Investigator] (AgentRole.INVESTIGATOR)
+  - Autonomously selects external tools (news, research, web, patents)
+  - Evaluates intermediate observations and investigates gaps
+  - Proposes investigation completion when findings appear complete
+        ↓
+[Evidence Critic] (AgentRole.CRITIC) — Critic-Gated Orchestration
+  - Gated evaluation of evidence sufficiency against the objective via `submit_review`
+  - If INSUFFICIENT: Identifies concrete gaps and injects actionable query recommendations back into Investigator
+  - If SUFFICIENT: Passes control to Report Synthesist
+        ↓
+[Report Synthesist] (AgentRole.SYNTHESIST)
+  - Composes structured, prioritized intelligence report from verified evidence only
+  - Enforces strict heading schemas and citation integrity ([E1], [E2], etc.)
+        ↓
+Interactive Live Dashboard with Real-Time Multi-Agent Telemetry
+```
+
+### Specialized Agent Roster
+
+| Agent Role | System Responsibility | Permitted Capabilities | Guardrails |
+|---|---|---|---|
+| **Lead Investigator** (`investigator`) | Understands objective, formulates search strategies, and dynamically queries external information sources. | `news_search`, `research_search`, `web_search`, `patent_search` | Cannot declare completion without Critic verification; cannot fabricate evidence. |
+| **Evidence Critic** (`critic`) | Gates completion by evaluating whether the gathered evidence pool sufficiently covers all dimensions of the objective. | `submit_review` (sufficiency evaluation & gap analysis) | Has NO data-gathering tools (cannot pollute evidence); fails open on errors; bounded by `MAX_CRITIQUES=2`. |
+| **Report Synthesist** (`synthesist`) | Composes the final executive intelligence briefing with prioritized signals and citations. | Structured report synthesis | Cannot introduce external unverified facts or URLs; citations validated by `report.py`. |
+
+---
+
 ## Key Features
 
-- **Autonomous AI Agent Reasoning & Dynamic Tool Selection**: The agent evaluates findings turn-by-turn and dynamically determines which tool to invoke next, what query parameters to formulate, and whether follow-up investigations are required.
+- **Specialized Multi-Agent Collaboration**: Three dedicated LLM roles with separated powers collaborating bidirectionally through a critic-gated loop.
+- **Dynamic Tool Selection & Autonomous Trajectory**: The Investigator evaluates findings turn-by-turn and dynamically determines which tool to invoke next.
 - **Multi-Source Real-World Intelligence Gathering**:
-  - **Research Literature Tracking**: Real-time queries to **OpenAlex API** with automatic fallback to **arXiv Atom API**, extracting peer-reviewed publications, author affiliations, venues, publication dates, and citation metrics.
-  - **Industry & Competitor News**: Real-time parsing of **Google News RSS** with publication date normalization and calculated `days_old` freshness indicators (plus optional NewsData.io support).
+  - **Research Literature Tracking**: Real-time queries to **OpenAlex API** with automatic fallback to **arXiv Atom API**.
+  - **Industry & Competitor News**: Real-time parsing of **Google News RSS** with publication date normalization and calculated `days_old` freshness indicators.
   - **Web Intelligence**: **DuckDuckGo** search with resilient automatic fallback to the **Wikipedia Search API**.
   - **Patent Intelligence**: Integrated **Google Patents** web-indexed database with direct patent links (plus modular **EPO OPS** OAuth support).
-- **Prioritized Signal Categorization**: Findings are systematically categorized into:
-  - `HIGH PRIORITY`: Crucial breakthroughs, decisive competitor actions, and major market shifts.
-  - `IMPORTANT`: Notable updates, incremental advancements, and partnership milestones.
-  - `EMERGING / WATCH`: Nascent research directions, early signals, and watch items.
+- **Prioritized Signal Categorization**: Findings are systematically categorized into `HIGH PRIORITY`, `IMPORTANT`, and `EMERGING / WATCH` tiers.
 - **Strict Anti-Fabrication Safeguards**:
   - Every factual claim is tied to an explicit evidence citation marker `[En]`.
   - The system automatically validates every citation marker against collected evidence, stripping unverified IDs.
   - The **Sources Reference List** is rendered directly by backend code from verified tool results, guaranteeing 100% genuine URLs.
 - **Adaptive Report Structure**: Headings with no supporting evidence are cleanly omitted rather than displayed empty.
 - **Live Agent Telemetry & Real-Time Dashboard**:
-  - **Server-Sent Events (SSE)** stream live reasoning phases and concrete query arguments (e.g. `news_search("NVIDIA Blackwell...")`).
-  - Active pulsing phase dot, ticking timer, capped ~12-item activity timeline, and streaming evidence feed.
+  - **Server-Sent Events (SSE)** stream live reasoning phases with agent attribution badges (`[investigator]`, `[critic]`, `[synthesist]`).
+  - Active pulsing phase dot, ticking timer, capped activity timeline, and streaming evidence feed.
   - Interactive citation chips `[En]` that smoothly scroll to matching verified sources.
 - **Robust Loop Safety & Budgets**:
-  - Hard iteration limit (`MAX_ITERATIONS=8`), tool call budget (`MAX_TOOL_CALLS=12`), tool timeout (`15s`), and wall-clock limit (`120s`).
+  - Hard iteration limit (`MAX_ITERATIONS=8`), tool call budget (`MAX_TOOL_CALLS=12`), max critiques (`MAX_CRITIQUES=2`), tool timeout (`15s`), and wall-clock limit (`120s`).
   - Forced final synthesis when budgets are exhausted.
-  - Strict filtering preventing internal reasoning/thought leaks from reaching telemetry.
-
----
-
-## Agentic Architecture
-
-```mermaid
-graph TD
-    User([User / Judge Dashboard]) -->|POST /api/investigate| API[FastAPI Application Backend]
-    API -->|Async Background Task| Controller[Autonomous Agent Controller]
-    API -->|GET /api/stream/run_id SSE| Stream[Live Telemetry Stream]
-    Stream --> User
-
-    subgraph Autonomous ReAct Loop
-        Controller <-->|Propose Next Step / Tool Calls| LLM[Google Gemini 3.5 Flash Lite]
-        Controller -->|Validate & Dispatch| Registry[Tool Registry Dispatcher]
-        
-        Registry -->|OpenAlex / arXiv| ToolResearch[research_search]
-        Registry -->|Google News RSS| ToolNews[news_search]
-        Registry -->|DuckDuckGo / Wikipedia| ToolWeb[web_search]
-        Registry -->|Google Patents / EPO OPS| ToolPatent[patent_search]
-        
-        ToolResearch -->|Normalized Records| EvStore[(Evidence Store & Corroboration)]
-        ToolNews -->|Normalized Records| EvStore
-        ToolWeb -->|Normalized Records| EvStore
-        ToolPatent -->|Normalized Records| EvStore
-        
-        EvStore -->|Verified Observations| Controller
-    end
-
-    Controller -->|Synthesis & Anti-Fabrication Check| ReportEngine[Report Assembly Engine]
-    ReportEngine -->|Prioritized Intelligence Briefing| API
-```
+  - Fail-open resilience: Critic failures gracefully default to open so reports are never blocked.
 
 ---
 

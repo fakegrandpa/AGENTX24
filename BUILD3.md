@@ -293,3 +293,34 @@ Cut in this order if the clock runs out:
 ---
 
 ## Stage Outcome
+
+- **Status**: **GREEN**
+- **Date**: 2026-08-22
+- **What was built**:
+  1. **Three Specialized LLM Agents with Separated Powers**:
+     - `Lead Investigator` (`AgentRole.INVESTIGATOR`): Executes the dynamic tool-calling ReAct loop across news, research, web, and patent providers.
+     - `Evidence Critic` (`AgentRole.CRITIC`): Evaluates gathered evidence against the objective via the dedicated `submit_review` function schema, returning structured `Critique` objects (`seq`, `sufficient`, `gaps`, `recommended_tool`, `recommended_query`, `confidence`, `note`).
+     - `Report Synthesist` (`AgentRole.SYNTHESIST`): Composes the final structured, prioritized intelligence briefing adhering to exact headings parsed by `report.py` without introducing unverified facts or URLs.
+  2. **Critic-Gated Orchestration**:
+     - The Investigator cannot unilaterally terminate the investigation; the Evidence Critic reviews evidence sufficiency when completion is proposed.
+     - When evidence is insufficient, named gaps and query recommendations are injected into the reasoning history, triggering a follow-up tool call.
+     - Hard loop termination safety guaranteed via `MAX_CRITIQUES=2` (in addition to `MAX_ITERATIONS=8`, `MAX_TOOL_CALLS=12`, `TOOL_TIMEOUT=15s`, `WALL_CLOCK=120s`).
+     - Fail-open resilience: Critic failures (e.g. rate limits, exceptions) default gracefully to open, logging the incident and ensuring a complete intelligence report is always generated.
+  3. **Telemetry & Visual UI Attribution**:
+     - Added `agent` field to `TelemetryEvent`, attributing every step to its executing agent (`INVESTIGATOR`, `CRITIC`, `SYNTHESIST`).
+     - Added `critiques` list to `Run` model and `/api/run/{id}` payload.
+     - Added `agents` roster and `critic_enabled` flag to `GET /api/health`.
+     - Frontend rendered agent badges on timeline nodes, specialized critique nodes with verdict and gap details, and agent roster pill indicators on the arrival screen.
+- **Verification Performed**:
+  1. **Acceptance Test**: Verified autonomous run on `"NVIDIA's competitive position in AI infrastructure"` — 3 tool calls (`news_search`, `web_search`, `research_search`), 24 evidence sources, 1 critique returned (`sufficient=True`), 8 prioritized signals, 0 unverified citation leaks.
+  2. **Dynamic Tool Path Diversity**:
+     - NVIDIA Target: `['news_search', 'web_search', 'research_search']`
+     - CRISPR Target: `['research_search', 'news_search', 'web_search', 'web_search', 'research_search']`
+     - Quantum Target: `['patent_search', 'news_search', 'web_search']`
+  3. **Non-Termination Safety Test**: Stubbed Critic with `sufficient=False`, verified run halts precisely at `MAX_CRITIQUES=2` and delivers a complete dossier.
+  4. **Fail-Open Resilience Test**: Injected exceptions into Critic execution, verified critic returns `sufficient=True` with note recorded, and run completes normally.
+  5. **Parity Test (`ENABLE_CRITIC=0`)**: Verified zero critiques recorded and 100% functionality preserved.
+  6. **Live Browser Verification**: Recorded browser subagent interaction (`stage3_multi_agent_verification`), verifying arrival roster pills, live agent badges on timeline nodes, and full report rendering.
+- **What was cut**: Nothing. Full three-agent roster, bidirectional critic gating, fail-open resilience, and complete frontend UI attribution were implemented and verified.
+- **New Limitations**: None.
+

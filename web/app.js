@@ -61,6 +61,13 @@ async function loadHealth() {
       }).join("");
     }
 
+    const arrivalAgents = $("arrival-agents");
+    if (data.agents && arrivalAgents) {
+      arrivalAgents.innerHTML = data.agents.map((a) => {
+        return `<span class="tool-pill mono agent-pill" title="${a.responsibility}">${a.id} (${a.name})</span>`;
+      }).join("");
+    }
+
     if (!data.gemini_ready) {
       showFieldError(data.gemini_status_message || "The reasoning model is not configured.");
     }
@@ -178,10 +185,10 @@ async function startInvestigation(query) {
   $("earlier-toggle").hidden = true;
 
   updateFocusBanner({
-    phase: "INITIALIZING",
-    title: `Understanding objective: "${query}"`,
+    phase: "INVESTIGATION STARTED",
+    title: `Target: ${query}`,
     query: null,
-    reason: "Identifying knowledge gaps and preparing external tool registry."
+    reason: null,
   });
 
   showScreen("screen-run");
@@ -195,14 +202,14 @@ async function startInvestigation(query) {
     });
 
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.detail || `Server error (HTTP ${res.status}).`);
+      const err = await res.json().catch(() => ({ detail: "Failed to start investigation." }));
+      throw new Error(err.detail || "Server error.");
     }
 
     const data = await res.json();
     state.runId = data.run_id;
     $("run-id-label").textContent = data.run_id;
-    openStream(data.run_id);
+    startStream(data.run_id);
   } catch (err) {
     stopClock();
     showError(err.message, "Verify the backend server is running on port 8000.");
@@ -235,8 +242,8 @@ function stopStream() {
   stopClock();
 }
 
-function openStream(runId) {
-  if (state.source) state.source.close();
+function startStream(runId) {
+  stopStream();
   state.source = new EventSource(`/api/stream/${runId}`);
 
   state.source.onmessage = async (msg) => {
@@ -307,12 +314,18 @@ function processTelemetryEvent(ev) {
   } else if (ev.kind === "tool_result") {
     phaseTag = "ANALYZING EVIDENCE";
     title = `Processed findings from ${d.tool || "tool"}`;
+  } else if (ev.phase === "Reviewing evidence sufficiency") {
+    phaseTag = "CRITIC REVIEW";
+    title = "Evidence Critic reviewing knowledge sufficiency";
+  } else if (ev.phase === "Critique returned") {
+    phaseTag = d.sufficient ? "EVIDENCE SUFFICIENT" : "GAPS IDENTIFIED";
+    title = d.sufficient ? "Evidence verified sufficient" : "Critic identified critical gaps";
   } else if (ev.phase === "Identifying knowledge gaps") {
     phaseTag = "GAP DETECTED";
     title = "Formulating next inquiry angle";
-  } else if (ev.phase === "Generating intelligence report") {
+  } else if (ev.phase === "Composing intelligence report" || ev.phase === "Generating intelligence report") {
     phaseTag = "SYNTHESIS";
-    title = "Synthesizing evidence into prioritized intelligence brief";
+    title = "Report Synthesist composing prioritized intelligence brief";
   }
 
   updateFocusBanner({
@@ -355,6 +368,8 @@ function getNodeClasses(ev, isLast) {
   if (isLast) classes.push("is-active");
   if (ev.kind === "tool_selected") classes.push("is-tool");
   else if (ev.kind === "tool_result") classes.push("is-result");
+  else if (ev.phase === "Reviewing evidence sufficiency" || ev.phase === "Critique returned") classes.push("is-critic");
+  else if (ev.phase === "Composing intelligence report") classes.push("is-synthesist");
   else if (ev.phase === "Identifying knowledge gaps") classes.push("is-gap");
   else if (ev.kind === "error") classes.push("is-error");
   return classes.join(" ");
@@ -380,6 +395,13 @@ function buildTimelineNode(ev, isLast) {
   const titleRow = document.createElement("div");
   titleRow.className = "node-title-row";
 
+  // Agent Role Badge
+  const agentRole = (ev.agent || "investigator").toLowerCase();
+  const agentBadge = document.createElement("span");
+  agentBadge.className = `node-agent-badge mono agent-${agentRole}`;
+  agentBadge.textContent = agentRole;
+  titleRow.appendChild(agentBadge);
+
   const title = document.createElement("span");
   title.className = "node-title";
 
@@ -394,6 +416,8 @@ function buildTimelineNode(ev, isLast) {
     title.textContent = `Evidence received (${d.new_evidence ?? "?"} items)`;
   } else if (ev.kind === "objective") {
     title.textContent = "Investigation initiated";
+  } else if (ev.phase === "Critique returned") {
+    title.textContent = d.sufficient ? "Evidence Sufficiency Confirmed" : "Evidence Sufficiency Check: Gaps Found";
   } else {
     title.textContent = ev.phase;
   }
@@ -424,6 +448,29 @@ function buildTimelineNode(ev, isLast) {
       rVal.className = "node-kv-reason";
       rVal.textContent = d.reason;
       kv.append(rLbl, rVal);
+    }
+
+    content.appendChild(kv);
+  } else if (ev.phase === "Critique returned") {
+    const kv = document.createElement("div");
+    kv.className = "node-meta-kv";
+
+    const vLbl = document.createElement("span");
+    vLbl.className = "node-kv-label";
+    vLbl.textContent = "VERDICT";
+    const vVal = document.createElement("span");
+    vVal.className = "node-kv-reason";
+    vVal.textContent = d.sufficient ? "Sufficient (Accepted)" : "Insufficient (Follow-up Required)";
+    kv.append(vLbl, vVal);
+
+    if (d.gaps && Array.isArray(d.gaps) && d.gaps.length > 0) {
+      const gLbl = document.createElement("span");
+      gLbl.className = "node-kv-label";
+      gLbl.textContent = "GAPS";
+      const gVal = document.createElement("span");
+      gVal.className = "node-kv-reason";
+      gVal.textContent = d.gaps.join("; ");
+      kv.append(gLbl, gVal);
     }
 
     content.appendChild(kv);

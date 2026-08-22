@@ -206,7 +206,10 @@ def run_investigation(
                     detail=f"{len(run.evidence)} evidence items under review",
                     agent=AgentRole.CRITIC,
                 )
-                critique = critique_evidence(objective, run.evidence, run.tool_calls, seq=seq_critique)
+                try:
+                    critique = critique_evidence(objective, run.evidence, run.tool_calls, seq=seq_critique)
+                except Exception as e:
+                    critique = Critique(seq=seq_critique, sufficient=True, note=f"Critic invocation failed: {e}")
                 run.critiques.append(critique)
 
                 first_gap = critique.gaps[0] if critique.gaps else (critique.note or "No specific gaps named")
