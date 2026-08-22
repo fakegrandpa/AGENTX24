@@ -112,6 +112,34 @@ Use these words precisely in every report:
 - **YELLOW** — runs, but some feature is degraded, partially implemented, or unverified. Must be stated explicitly.
 - **RED** — does not build or does not run. Highest priority; nothing else matters until it is green.
 
+### P9 — Build Documents (immutable and numbered)
+There is **no single mutable `BUILD.md`**. Each stage gets exactly one numbered document.
+
+**Numbering — do this before creating any build document:**
+1. List the workspace root for existing `BUILD*.md` files.
+2. Find the highest existing number N.
+3. Create `BUILD<N+1>.md`. Never write to a number that already exists.
+
+`BUILD1.md` is the Hour 0 architecture and planning record. `BUILD2.md`, `BUILD3.md`, … are stage records, one per announced requirement.
+
+**Immutability:**
+- The planning content of any build document is **frozen once written**.
+- The **current** stage's document may receive an **append-only** `Stage Outcome` block at the bottom, written by the skills that execute that stage (what was actually built, verified, cut, and any new limitations). Never rewrite the planning sections above it.
+- **Earlier** stages' documents are historical records: do not edit, rename, delete, renumber, or reflow them. A genuine factual correction is appended as a clearly labelled `[correction]` line, never an in-place rewrite.
+- `BUILD-LAST.md` is created **only** near the final stage, as a compact final system map. It never replaces or deletes the numbered documents.
+
+**Source of truth, in order:**
+1. **The current actual codebase** — the only authority on what exists.
+2. The **latest** relevant `BUILD<n>.md` — latest planning context and intent.
+3. **Earlier** `BUILD<n>.md` files — historical architecture and decision context.
+4. **Git history** — checkpoint and change history.
+
+Never assume an older build document still describes the implementation. Inspect the code before planning or changing anything. Where a document and the code disagree, the code wins and the discrepancy is worth reporting.
+
+**Cross-references** use section *names*, not numbers, because each document has its own layout:
+- The original core flow test lives in `BUILD1.md` → `Core Flow Test`. It stays the baseline regression check for the whole event.
+- Per-stage acceptance tests live in that stage's document → `Acceptance Test`.
+
 ---
 
 ## 4. Living documents
@@ -119,10 +147,12 @@ Use these words precisely in every report:
 | File | Role | Who writes it |
 |---|---|---|
 | `AGENTS.md` | Permanent rules. Rarely changes. | Humans |
-| `BUILD.md` | Living technical blueprint: scope, stack, run commands, architecture map, extension points, stage log, risks, known limitations, demo script. | `hackathon-architect` creates; other skills append |
-| `README.md` | How a judge or organizer runs the project. Created once the run command is stable; kept accurate. | `mvp-builder`, then `submission-manager` |
+| `BUILD1.md` | Hour 0 architecture record: problem, scope, stack and decisions, MVP, architecture, core flow test, build order, risks, what not to build yet. Frozen after creation. | `hackathon-architect` |
+| `BUILD2.md`, `BUILD3.md`, … | One per announced requirement: the requirement, what already exists in code, affected components, integration strategy, regression risks, plan, decisions, what must stay unchanged. Frozen after its stage ends. | `feature-integrator` (planning), append-only outcome from the executing skills |
+| `BUILD-LAST.md` | Final compact system map. Created only near the end. | `hackathon-architect` or `submission-manager`, when asked |
+| `README.md` | The always-current answer to "how do I run this and what does it do". Updated whenever the run commands or feature set change. | `mvp-builder`, then each stage |
 
-`BUILD.md` is updated when an **architectural decision, run command, data shape, or scope boundary changes** — not on every commit. The stage log is the exception: append one short line per stage.
+Because build documents are frozen, `README.md` is the only place that must always be true about the *present* state. Keep it accurate.
 
 ---
 
@@ -148,7 +178,8 @@ One skill at a time, in that logical order. Do not run `demo-polisher` on a YELL
 - [ ] P3 verification performed, with commands and observed results reported.
 - [ ] Previously working core flow re-verified.
 - [ ] Project starts from a clean checkout of the committed state.
-- [ ] `BUILD.md` stage log updated; blueprint updated if a decision changed.
+- [ ] This stage's `BUILD<n>.md` exists, and its append-only `Stage Outcome` block records what was actually built, verified, and cut. Earlier build documents untouched.
+- [ ] `README.md` still describes the current run commands and feature set accurately.
 - [ ] No secrets, no dependency directories, no build caches staged.
 - [ ] Green checkpoint committed (P4).
 - [ ] Honest status report using P8 labels, including known limitations.

@@ -4,15 +4,16 @@ description: >-
   Turn a freshly revealed hackathon problem statement into an actionable plan: mandatory vs optional
   requirements, hidden assumptions, likely judging priorities, the fastest appropriate stack, the
   smallest complete end-to-end MVP, real risks, minimal extension points, a build order, and an
-  explicit not-yet list. Writes or updates BUILD.md. Use at Hour 0, or when a later requirement
-  genuinely forces an architectural decision. Do not use for routine feature work.
+  explicit not-yet list. Creates BUILD1.md, the frozen Hour 0 architecture record. Use at Hour 0, or
+  when a later requirement genuinely forces an architectural decision. Do not use for routine feature
+  work.
 ---
 
 # Hackathon Architect
 
-Read `AGENTS.md` first. This skill produces a **plan and `BUILD.md`**, not code.
+Read `AGENTS.md` first, including protocol P9 on numbered immutable build documents. This skill produces a **plan and `BUILD1.md`**, not code.
 
-**Hard rule: write zero application code in this skill.** The only file you may create or edit is `BUILD.md` (and `.gitignore` if absent).
+**Hard rule: write zero application code in this skill.** The only file you may create or edit is `BUILD1.md` (and `.gitignore` if absent).
 
 Time box: **20 minutes** for the analysis, **25 max**. If you exceed it, ship the plan as-is and start building.
 
@@ -74,7 +75,7 @@ Also decide and record now:
 
 Define the vertical slice: the thinnest path that a judge can watch work end to end, covering the primary journey and nothing else. If any listed item can be removed while the journey still demonstrates the solution, remove it.
 
-State the MVP's **observable success test** in one sentence: "Given X, the user does Y, and Z is visibly produced." `mvp-builder` and `regression-guardian` will reuse this exact sentence as the core flow test.
+State the MVP's **observable success test** in one sentence: "Given X, the user does Y, and Z is visibly produced." This becomes the `Core Flow Test` section of `BUILD1.md`, and `mvp-builder`, `feature-integrator`, and `regression-guardian` reuse that exact sentence as the baseline regression check for the rest of the event.
 
 ## Step 6 — Extension points, only where earned (2 min)
 
@@ -84,34 +85,43 @@ Unknown features are coming. Buy flexibility **only** where it is nearly free:
 - Keep the display layer thin so a new view is additive.
 - Name things after the domain, not the current feature.
 
-That is the whole list. Do not add plugin registries, event buses, strategy interfaces, or abstract base classes on speculation. Note in `BUILD.md`: *"Flexibility is bought by small files and clear seams, not by abstractions."*
+That is the whole list. Do not add plugin registries, event buses, strategy interfaces, or abstract base classes on speculation. Note in `BUILD1.md`: *"Flexibility is bought by small files and clear seams, not by abstractions."*
 
 ## Step 7 — Risks (2 min)
 
 For each real risk: likelihood, impact, and a **pre-decided fallback** (e.g. "if the external API needs a paid key → ship with a local fixture behind the same function"). Highest-value output of this step is the fallback, not the warning.
 
-## Step 8 — Write BUILD.md
+## Step 8 — Write BUILD1.md
 
-Create `BUILD.md` with exactly these sections (concise; bullets over prose):
+Confirm no `BUILD1.md` already exists (P9 numbering). If one does, you are not at Hour 0 — stop and report; a later stage belongs to `feature-integrator`, which creates the next sequential number.
+
+Create `BUILD1.md` with exactly these sections (concise; bullets over prose):
 
 ```
-# BUILD.md — <project name>
-## 1. Problem & Primary Journey
-## 2. Scope: MUST / SHOULD / NICE / NOT YET
-## 3. Stack & Key Decisions   (decision — reason — rejected alternative)
-## 4. How to Run             (setup, run, verify commands)
-## 5. Architecture Map       (what each file/module owns; kept current)
-## 6. Data Shapes            (the few structures that matter)
-## 7. Extension Seams        (where new features are expected to attach)
-## 8. Core Flow Test         (the observable success sentence)
-## 9. Build Order            (numbered, each step independently verifiable)
-## 10. Risks & Fallbacks
-## 11. Stage Log             (one line per stage: what was added, status)
-## 12. Known Limitations
-## 13. Demo Script           (filled in later by demo-polisher)
+# BUILD1.md — <project name> — Hour 0 architecture record
+
+## Problem & Primary Journey
+## Scope: MUST / SHOULD / NICE / NOT YET
+## Stack & Key Decisions        (decision — reason — rejected alternative)
+## How to Run                   (setup, run, verify commands as planned)
+## Architecture                 (what each planned file/module owns)
+## Data Shapes                  (the few structures that matter)
+## Extension Seams              (where future features are expected to attach)
+## Core Flow Test               (the observable success sentence — the baseline
+                                 regression check for the whole hackathon)
+## Build Order                  (numbered, each step independently verifiable)
+## Risks & Fallbacks
+## Not To Be Built Yet          (explicit)
+## Stage Outcome                (empty heading; mvp-builder appends here)
 ```
 
-Keep it short enough that any agent can read it fully at the start of every stage.
+This document is the frozen Hour 0 record. Once written, do not rewrite its planning sections — later stages get their own numbered documents, and the executing skills append only under `Stage Outcome`.
+
+Keep it short enough that any agent can read it fully at the start of any stage.
+
+### If asked for the final summary (BUILD-LAST.md)
+
+Only near the final stage, and only when asked, produce `BUILD-LAST.md`: a compact final system map built from all `BUILD<n>.md` files, the **current actual codebase** (the authority), and current Git state. Cover final purpose, final architecture, the complete implemented feature set, major decisions, known limitations, and the demo flow. Verify every claim against the code — do not copy stale intentions forward. It must not replace, delete, or edit any numbered build document. Do not create it during normal feature cycles.
 
 ---
 
@@ -123,6 +133,7 @@ Keep it short enough that any agent can read it fully at the start of every stag
 - Diagramming, layering, or naming patterns instead of deciding what to build first.
 - Restating the problem statement back without decisions.
 - Leaving the stack "to be decided" — the next skill cannot start without it.
+- Creating a mutable `BUILD.md`, overwriting an existing numbered document, or creating `BUILD-LAST.md` early.
 
 ## Definition of done
 
@@ -131,9 +142,9 @@ Keep it short enough that any agent can read it fully at the start of every stag
 - [ ] Vertical-slice MVP defined with a single observable success sentence.
 - [ ] Risks each have a fallback.
 - [ ] Numbered build order where every step is independently verifiable.
-- [ ] `BUILD.md` written; no application code created.
+- [ ] `BUILD1.md` written, no pre-existing build document touched, and no application code created.
 - [ ] User shown the plan and the not-yet list before implementation starts.
 
 ## Handoff
 
-→ `mvp-builder`, using `BUILD.md` §9 build order.
+→ `mvp-builder`, using the `Build Order` section of `BUILD1.md`.

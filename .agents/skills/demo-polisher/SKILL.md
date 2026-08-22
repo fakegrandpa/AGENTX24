@@ -3,13 +3,16 @@ name: demo-polisher
 description: >-
   Make an already-working project immediately understandable and convincing: visual consistency,
   obvious primary action, loading/error/empty states, realistic seed data, a rehearsed demo path, and a
-  demo script in BUILD.md. Highest visible impact for lowest technical risk. Use only when the project
-  is GREEN and time remains before a demo. Never use to fix broken functionality.
+  demo script recorded in the current stage's build document. Highest visible impact for lowest
+  technical risk. Use only when the project is GREEN and time remains before a demo. Never use to fix
+  broken functionality.
 ---
 
 # Demo Polisher
 
-Read `AGENTS.md`. Precondition: the project is **GREEN**. If it is YELLOW or RED, stop and use `regression-guardian` or `emergency-recovery` instead — polish on a broken project is wasted work.
+Read `AGENTS.md` (including P9 on numbered immutable build documents). Precondition: the project is **GREEN**. If it is YELLOW or RED, stop and use `regression-guardian` or `emergency-recovery` instead — polish on a broken project is wasted work.
+
+For context, read `BUILD1.md` → `Problem & Primary Journey` and `Core Flow Test`, plus the newest `BUILD<n>.md` to know which features exist and what must remain unchanged. Then judge the app by **what it actually does when you run it**, not by what any document says. Do not assume an older document still matches the UI.
 
 Judges score what they can see and understand in a few minutes. This skill improves comprehension and perceived quality **without touching business logic**.
 
@@ -53,10 +56,10 @@ If it does not, **add nothing**. No fake "AI-powered" labels, no simulated think
 
 Run the demo path end to end at least once, exactly as it will be presented, and time it.
 
-Add to `BUILD.md` §13:
+Append a `Demo Script` block to the **current** stage's `BUILD<n>.md` (the highest-numbered one), inside or directly after its `Stage Outcome` section. Do not edit earlier documents.
 
 ```
-## 13. Demo Script
+## Demo Script
 Setup:      <commands to have it running, plus any prerequisites>
 Reset:      <how to get back to a clean demo state>
 Path:       1. <action> → <what the judge sees>
@@ -66,9 +69,11 @@ Avoid:      <known-fragile areas not to click during the demo>
 Fallback:   <what to do if a live step fails: prepared data, screenshot, second path>
 ```
 
+If the polish changed how the app is started or presented, update `README.md` too.
+
 ## Step 5 — Verify and checkpoint
 
-Re-run P3 verification: build, start, core flow, plus every screen or output you touched. Cosmetic changes break layouts and bindings more often than expected — verify, do not assume. Then green checkpoint (P4): `polish: <what improved>`.
+Re-run P3 verification: build, start, the `BUILD1.md` core flow, plus every screen or output you touched. Cosmetic changes break layouts and bindings more often than expected — verify, do not assume. Then green checkpoint (P4): `polish: <what improved>`.
 
 ---
 
@@ -83,6 +88,8 @@ Re-run P3 verification: build, start, core flow, plus every screen or output you
 - Trading reliability for visual flair.
 - Polishing screens that are not part of the demo path.
 - Continuing to polish through the submission window.
+- Working from an outdated build document instead of the running application.
+- Editing earlier `BUILD<n>.md` files, or reviving a single mutable `BUILD.md`.
 
 ## Definition of done
 
@@ -92,7 +99,7 @@ Re-run P3 verification: build, start, core flow, plus every screen or output you
 - [ ] Seed/sample data makes the flow demoable in seconds, labelled honestly.
 - [ ] Visual/terminology consistency pass done on demo-path screens.
 - [ ] No fake or misleading capability added.
-- [ ] Demo path rehearsed and timed; `BUILD.md` §13 written with a fallback.
+- [ ] Demo path rehearsed and timed; `Demo Script` appended to the current stage's document with a fallback.
 - [ ] All touched surfaces re-verified; green checkpoint committed.
 
 ## Handoff

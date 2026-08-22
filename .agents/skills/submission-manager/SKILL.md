@@ -10,7 +10,9 @@ description: >-
 
 # Submission Manager
 
-Read `AGENTS.md`. This skill ships what exists; it does not add features. Once this skill starts, the code is frozen except for submission-blocking fixes.
+Read `AGENTS.md` (including P9 on numbered immutable build documents). This skill ships what exists; it does not add features. Once this skill starts, the code is frozen except for submission-blocking fixes.
+
+**Verify the implementation, not the paperwork.** Build documents are context: the newest `BUILD<n>.md` tells you which feature this stage was supposed to deliver, and `BUILD1.md` holds the baseline `Core Flow Test`. Everything you certify must be observed in the running project. Do not edit historical build documents while packaging — including to make them look tidier.
 
 Budget: **10–15 minutes**. Start it before you feel ready — the goal is that a stage is never missed because someone was still coding.
 
@@ -41,11 +43,11 @@ git diff --stat HEAD
 
 This is the step most often skipped and most often fatal. Do not trust your warm dev environment.
 
-- Confirm every file the project needs to run is tracked (`git ls-files`), especially recently added source, assets, schemas, and config.
+- Confirm every file the project needs to run is tracked (`git ls-files`), especially recently added source, assets, schemas, and config. All `BUILD*.md` files must be tracked — they are the project record.
 - Confirm build/compile passes and the app starts, from the committed state.
-- Confirm the run instructions in `README.md` / `BUILD.md` §4 match the commands that actually work, including setup and any required env variables.
+- Confirm the run instructions in `README.md` match the commands that actually work, including setup and any required env variables. `README.md` is the current-state document; a stale `How to Run` in `BUILD1.md` is expected and is not a defect.
 - If time allows and it is affordable, do the strongest check: clone or copy the repo to a temp directory, install from the lock file, and run it. This catches missing files, missing dependency declarations, and hardcoded local paths.
-- Exercise the `BUILD.md` §8 core flow once in that state.
+- Exercise the `Core Flow Test` from `BUILD1.md` once in that state, plus the newest stage's `Acceptance Test`.
 
 ## Step 4 — Hygiene: what must not ship, and what must
 
@@ -62,7 +64,7 @@ If a secret was ever committed, say so plainly to the user and treat the key as 
 - Lock/pin files — they make the submission reproducible.
 - Dependency manifest, and an example env file with placeholder values documenting every required variable.
 - `README.md` with setup, run, and core-flow verification steps.
-- `BUILD.md` and `AGENTS.md` (they demonstrate process and are cheap to include).
+- Every `BUILD<n>.md` (and `BUILD-LAST.md` if it exists) plus `AGENTS.md` — they demonstrate process and are cheap to include.
 - Any organizer-required documents.
 
 Quick sanity check: scan the staged/tracked file list for anything that looks like a secret, and for unexpectedly large files.
@@ -92,7 +94,7 @@ VERIFIED
 [ ] Core flow observed working — <what was observed>
 [ ] Stage <N> feature working — <what was observed>
 [ ] Run instructions match reality
-[ ] All required files tracked (clean-copy run: yes/no)
+[ ] All required files tracked, including every BUILD<n>.md (clean-copy run: yes/no)
 [ ] Lock/manifest/config included
 [ ] No secrets, no dependency dirs, no caches, no build junk
 [ ] Archive/link verified — <name or URL>
@@ -101,10 +103,14 @@ EXCLUDED ON PURPOSE
 - <unverified or broken work left out>
 
 KNOWN LIMITATIONS
-- <carried from BUILD.md §12>
+- <from the newest Stage Outcome blocks, verified against the running project>
 ```
 
 Any unchecked box must be stated as unchecked, with the reason.
+
+### Final submission only
+
+If this is the last submission and the organizers or the user want a summary document, `BUILD-LAST.md` may be produced here (see `hackathon-architect` for its contents): a compact final system map built from the numbered documents, the **current actual codebase**, and Git state, with every claim verified against the code. It is additive — it never replaces or deletes a numbered document. Do not create it during earlier stages.
 
 ---
 
@@ -113,6 +119,8 @@ Any unchecked box must be stated as unchecked, with the reason.
 - Adding features, refactoring, or polishing during the submission window.
 - Submitting an older commit while newer verified work sits uncommitted, unpushed, or on another branch.
 - Claiming runnable without running it from the committed state.
+- Certifying a feature because a build document says it was planned, rather than because you saw it work.
+- Editing, tidying, renaming, or deleting historical `BUILD<n>.md` files while packaging.
 - Shipping secrets, or committing an env file "just so it runs".
 - Shipping dependency directories or caches when they were not requested, bloating the archive.
 - Stripping lock files, manifests, or config to "clean up" the submission.
@@ -126,9 +134,10 @@ Any unchecked box must be stated as unchecked, with the reason.
 - [ ] Organizer requirements confirmed and followed.
 - [ ] Shipping commit identified; latest verified work included.
 - [ ] Runnability verified from the committed state; core flow and stage feature observed working.
-- [ ] Secrets and generated artifacts excluded; required files and lock files present.
+- [ ] Secrets and generated artifacts excluded; required files, lock files, and all build documents present.
 - [ ] Archive or repo link created and inspected, if required.
 - [ ] Checklist reported with honest status and known limitations.
+- [ ] No historical build document modified.
 
 ## Handoff
 

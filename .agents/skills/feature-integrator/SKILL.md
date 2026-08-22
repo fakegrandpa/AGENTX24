@@ -2,35 +2,44 @@
 name: feature-integrator
 description: >-
   Integrate a newly announced requirement into the existing AGENTX24 project without breaking what
-  already works: parse the requirement, inspect the current code, map affected files and regression
-  risks, pick the smallest reliable integration strategy that reuses existing architecture, implement
-  incrementally, verify new plus affected old behaviour, update BUILD.md only on real architectural
-  change, and checkpoint. Use at every 3-hour requirement drop (Stage 1+).
+  already works: read the build-document history, inspect the current code, create the next sequential
+  BUILD[n].md stage record, map affected files and regression risks, pick the smallest reliable
+  integration strategy that reuses existing architecture, implement incrementally, verify new plus
+  affected old behaviour, and checkpoint. Use at every 3-hour requirement drop (Stage 1+).
 ---
 
 # Feature Integrator
 
-The most-used skill of the hackathon. Read `AGENTS.md` and `BUILD.md` before touching code.
+The most-used skill of the hackathon. Read `AGENTS.md` (including P9 on numbered immutable build documents) before touching code.
 
 **Framing that governs everything below:** this is an *addition to a living system*, not a new build. The existing stack, structure, and conventions are fixed inputs. Your job is the smallest correct extension of them.
+
+**The codebase is the source of truth, not the documents.** Build documents record what was *intended* at each stage; only the code says what exists. Where they disagree, trust the code and report the discrepancy.
 
 Follow the P6 cycle budget: ~15 min plan, ~90 min implement, ~25 min verify, freeze the last 20 min.
 
 ---
 
+## Step 0 — Locate yourself in the build history (2 min)
+
+- List `BUILD*.md` in the workspace root. Note the highest existing number N; this stage will create `BUILD<N+1>.md`. Never write to an existing number (P9).
+- Read `BUILD1.md` for the original architecture, scope, and `Core Flow Test`.
+- Read the most recent one or two stage documents for current intent and any `Stage Outcome` blocks.
+- Skim earlier stage documents only for decisions that bear on this requirement. Do not read all of them in full — that is not a good use of the clock.
+
 ## Step 1 — Parse the requirement literally (5 min)
 
 Write out:
 - **Demanded:** what the requirement explicitly says must exist. Quote key phrases.
-- **Acceptance test:** the observable check that proves it, phrased like `BUILD.md` §8 — "Given X, do Y, see Z."
+- **Acceptance test:** the observable check that proves it, phrased like the `Core Flow Test` in `BUILD1.md` — "Given X, do Y, see Z."
 - **Boundaries:** what it does *not* ask for. Everything adjacent that you are tempted to add goes here.
 - **Interpretation:** if wording is ambiguous, choose the reading that is cheapest to implement and easiest to extend, state it, and proceed (P7 only if the ambiguity changes the design).
 
 If the requirement seems to demand replacing the current architecture, re-read it. Usually it demands new *behaviour*, not a new *foundation*. Escalate (P7) only if replacement is truly unavoidable, with a cost estimate and a fallback.
 
-## Step 2 — Inspect before editing (5 min, P1)
+## Step 2 — Inspect the actual code before editing (5 min, P1)
 
-- Re-read `BUILD.md` §5 architecture map, §6 data shapes, §7 extension seams.
+- Verify against the code what the build documents claim: the real file layout, the real data shapes, the seams that actually exist.
 - List the tree and read the files you expect to touch.
 - Search for the domain nouns/verbs in the requirement to find where related logic already lives — the feature is often 70% present under a different name.
 - Identify the existing pattern for this class of change (how the last route/view/handler/command/model was added) and plan to follow it.
@@ -70,33 +79,55 @@ Pick the cheapest option that fully satisfies the acceptance test:
 
 Additive extension is the default; a reshape needs a stated reason. Extract only on the *second* real use, never in anticipation of one.
 
-## Step 5 — Implement incrementally
+## Step 5 — Write BUILD<N+1>.md before implementing (3 min)
+
+Create the stage record now, while the analysis is fresh and before any code changes. Use the number established in Step 0. Keep it tight — bullets, no essays:
+
+```
+# BUILD<n>.md — Stage <n> — <feature name>
+
+## Requirement              (exact wording as announced, quoted)
+## Acceptance Test          ("Given X, do Y, see Z")
+## What Already Exists      (verified against the code, not the documents)
+## Relevant Prior Context   (decisions from earlier BUILD files that constrain this)
+## Affected Files & Components   (the Touch / Add / Reuse map)
+## Integration Strategy     (chosen option + why the cheaper ones were rejected)
+## Regression Risks         (each with how it will be checked)
+## Implementation Plan      (numbered, each step independently verifiable)
+## Architectural Decisions This Stage   (only real ones; "none" is a valid answer)
+## Must Remain Unchanged    (working behaviour and files this stage must not disturb)
+## Scope Cut Line           (minimum version if the clock runs out)
+## Stage Outcome            (empty heading; appended after verification)
+```
+
+Do not touch `BUILD1.md` or any earlier stage document while doing this (P9).
+
+## Step 6 — Implement incrementally
 
 - Work in small verifiable steps; keep the project runnable between steps (never leave it mid-refactor at a stage boundary).
 - Follow existing naming, file layout, error handling, and styling conventions. Consistency beats your preferred style.
 - Reuse existing helpers, components, and utilities rather than adding parallel ones.
 - New dependency? Only if it clearly saves significant time, is a well-known maintained package, and is pinned to an exact version. Otherwise implement the small thing directly. Never add a framework to solve a function-sized problem.
-- Touch only the files in your map. If you discover an unrelated defect, note it in `BUILD.md` §12 and keep going — do not fix it in this diff unless it blocks the requirement.
-- If you are 60% through the implementation budget and not close, cut to the minimum satisfying version, note what was cut in `BUILD.md` §2, and finish (P6).
+- Touch only the files in your map, and respect this stage's `Must Remain Unchanged` list. If you discover an unrelated defect, note it for the `Stage Outcome` block and keep going — do not fix it in this diff unless it blocks the requirement.
+- If you are 60% through the implementation budget and not close, fall back to the `Scope Cut Line`, and record what was cut (P6).
 
-## Step 6 — Verify new and old (P3)
+## Step 7 — Verify new and old (P3)
 
 1. Build/compile/typecheck.
 2. Start the app or run the entry point clean.
-3. Execute the Step 1 acceptance test; observe the expected result.
-4. Execute the `BUILD.md` §8 core flow — it must still pass.
-5. Execute each item from the Step 3 at-risk list.
+3. Execute this stage's `Acceptance Test`; observe the expected result.
+4. Execute the `Core Flow Test` from `BUILD1.md` — it must still pass.
+5. Execute each item from the `Regression Risks` list.
 6. Check for new errors in logs/console, and for stale stored data that no longer loads.
 
 If the at-risk surface is broad, or something failed and the cause is unclear, hand to `regression-guardian` rather than improvising a wider sweep here.
 
-## Step 7 — Document and checkpoint
+## Step 8 — Document and checkpoint
 
-- `BUILD.md` §11 stage log: always append one line.
-- `BUILD.md` §5/§6/§7: update **only** if the architecture map, a data shape, or a seam actually changed.
-- `BUILD.md` §3: append a decision line only for a real, consequential choice.
-- `BUILD.md` §12: record anything partial, degraded, or cut.
-- Green checkpoint (P4): `stage-<N>: <feature> — <what now works>`.
+- **Append** to this stage's `BUILD<n>.md` → `Stage Outcome`: what was actually built, what was verified and how, what was cut or deferred, any deviation from the plan and why, and new known limitations. Leave the planning sections above it as written.
+- Update `README.md` if the run commands or the user-visible feature set changed — it is the only always-current document.
+- Do **not** edit `BUILD1.md` or earlier stage documents. If an earlier document is now factually wrong about the code, append a one-line `[correction]` note there and say so in your report; never rewrite it.
+- Green checkpoint (P4): `stage-<n>: <feature> — <what now works>`.
 
 ---
 
@@ -114,16 +145,20 @@ Hard prohibitions — each of these has lost hackathons:
 - **Breaking old behaviour** to make new behaviour simpler, without saying so.
 - **Committing unverified work** or reporting success from code alone.
 - **Starting to code before inspecting** the files you are about to change.
+- **Trusting a build document over the code** — plan from what exists, not from what an old file claims.
+- **Overwriting, renaming, deleting, or rewriting an existing `BUILD<n>.md`**, reviving a single mutable `BUILD.md`, or creating `BUILD-LAST.md` during a normal feature cycle.
 
 ## Definition of done
 
+- [ ] Highest existing `BUILD<n>.md` identified; the next sequential number created, nothing overwritten.
 - [ ] Requirement restated with an explicit acceptance test.
-- [ ] Existing code inspected; touch/add/reuse/at-risk map written before editing.
+- [ ] Actual code inspected; touch/add/reuse/at-risk map written before editing.
 - [ ] Smallest viable strategy chosen; existing architecture reused.
-- [ ] Only mapped files changed.
+- [ ] `BUILD<n>.md` stage record written before implementation began.
+- [ ] Only mapped files changed; the `Must Remain Unchanged` list respected.
 - [ ] Acceptance test observed passing.
-- [ ] Core flow and every at-risk item re-verified.
-- [ ] `BUILD.md` stage log updated; blueprint updated only on real change.
+- [ ] `BUILD1.md` core flow and every regression-risk item re-verified.
+- [ ] `Stage Outcome` appended to this stage's document; earlier documents untouched; `README.md` still accurate.
 - [ ] Green checkpoint committed.
 - [ ] Report: what was added, what was verified, what was cut or is unverified (P8).
 

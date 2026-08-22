@@ -9,7 +9,9 @@ description: >-
 
 # Emergency Recovery
 
-Read `AGENTS.md`. The project is RED. Nothing else matters until it is green again.
+Read `AGENTS.md` (including P9 on numbered immutable build documents). The project is RED. Nothing else matters until it is green again.
+
+Git history is your primary record of what changed; the current stage's `BUILD<n>.md` tells you what that change was *trying* to do, and `BUILD1.md` holds the baseline `Core Flow Test` and the `Risks & Fallbacks` list. Use documents for intent only — the code and the error are the evidence.
 
 The failure mode that loses hackathons is not the bug — it is the panicked sequence of speculative edits after it. **Diagnosis before change. Always.**
 
@@ -42,7 +44,7 @@ git diff HEAD -- <files named in the error>
 git log --oneline -10
 ```
 
-Ask: what is different between the last known green state and now? Uncommitted changes are the prime suspect. Also check for changes you did not intend — a generator, formatter, or install may have rewritten config or lock files.
+Ask: what is different between the last known green state and now? Uncommitted changes are the prime suspect. Also check for changes you did not intend — a generator, formatter, or install may have rewritten config or lock files. Cross-check the current stage's `BUILD<n>.md` → `Implementation Plan` and `Must Remain Unchanged`: work that strayed outside the planned diff surface is a strong lead.
 
 ## Step 3 — One root cause hypothesis
 
@@ -59,7 +61,7 @@ Then check it against the evidence before acting. If you cannot name Y, you are 
 | Recent uncommitted work is broadly broken and time is short | **Shelve it** (`git stash push -m "wip-<stage>-broken"`), confirm green, then re-implement smaller |
 | The last commit itself is broken | **Return to the last green tag/commit** on a new branch and re-apply the feature minimally |
 | Environment or dependency state is corrupt | **Reinstall dependencies from the lock file** (delete the dependency directory, reinstall) — data and source untouched |
-| External dependency is failing | **Switch to the pre-decided fallback** from `BUILD.md` §10 (fixture, cached response, offline mode) |
+| External dependency is failing | **Switch to the pre-decided fallback** from `BUILD1.md` → `Risks & Fallbacks` (fixture, cached response, offline mode) |
 
 Rules for all routes:
 - Change one thing, then test. Never bundle several speculative fixes — you will not know which worked, or what else you broke.
@@ -71,7 +73,7 @@ Rules for all routes:
 
 1. Build/compile/typecheck clean.
 2. App starts or entry point runs clean.
-3. `BUILD.md` §8 core flow passes.
+3. The `Core Flow Test` from `BUILD1.md` passes.
 4. The most recently added feature: works, or is explicitly reported as reverted/degraded.
 5. No new errors introduced by the fix itself.
 
@@ -90,7 +92,7 @@ STATUS:    GREEN | YELLOW  (+ what is degraded)
 NEXT:      <how to re-apply the reverted work more safely>
 ```
 
-If work was shelved or reverted, note it in `BUILD.md` §12 so it is not forgotten in the next stage.
+If work was shelved or reverted, append it to the current stage's `BUILD<n>.md` → `Stage Outcome` so it is not forgotten in the next stage. Do not edit earlier documents; if the recovery means a stage's plan was only partly delivered, say so in the outcome block rather than rewriting the plan.
 
 ---
 
@@ -106,6 +108,7 @@ If work was shelved or reverted, note it in `BUILD.md` §12 so it is not forgott
 - Chasing a suspected second bug before the first is confirmed fixed.
 - Reporting recovery without re-running the core flow.
 - Staying RED past a submission deadline out of attachment to unfinished work.
+- Rewriting a build document to match what you ended up with, or deleting a stage document because its feature was reverted.
 
 ## Definition of done
 

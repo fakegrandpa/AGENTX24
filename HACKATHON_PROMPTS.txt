@@ -10,18 +10,31 @@ HOW TO USE THIS FILE
 - The TOOL line tells you where to paste it.
 - Never start a new project folder. Every prompt targets D:\AGENTX24 itself.
 
+BUILD DOCUMENT SYSTEM (read once, then it is automatic)
+- There is NO single mutable BUILD.md.
+- Hour 0 creates BUILD1.md: the frozen architecture and planning record.
+- Each new 3-hour requirement creates the NEXT number: BUILD2.md, BUILD3.md, ...
+- Numbering rule: list existing BUILD*.md, take the highest number, add one.
+  Never overwrite an existing one.
+- Planning content is frozen once written. Only the CURRENT stage's document may
+  be appended to, under its "Stage Outcome" heading.
+- Source of truth order: (1) the actual codebase, (2) the newest BUILD[n].md,
+  (3) earlier BUILD[n].md files, (4) Git history.
+- README.md is the only always-current document for how to run the project.
+- BUILD-LAST.md is a final summary, created near the end only. Not during stages.
+
 
 ==============================================================================
 TOMORROW FLOW - CHEAT SHEET
 ==============================================================================
 
 HOUR 0:
-  OpenCode     -> Section 1  Main Problem Analysis -> BUILD.md
+  OpenCode     -> Section 1  Main Problem Analysis -> BUILD1.md
   Antigravity  -> Section 2  Build MVP -> Verify -> Git Commit
   Antigravity  -> Section 7  Submission Check
 
 EVERY NEW 3-HOUR FEATURE:
-  OpenCode     -> Section 3  Analyze Feature -> Implementation Plan
+  OpenCode     -> Section 3  Analyze Feature -> creates BUILD[next].md + plan
   Antigravity  -> Section 4  Implement -> Verify
   Either tool  -> Section 5  Regression Test
   Either tool  -> Section 9  Git Checkpoint
@@ -59,15 +72,16 @@ same project. Do not create a new project, a subproject folder, or a scaffold.
 
 Do this first, in order:
 1. Read AGENTS.md in the workspace root and follow it as binding rules,
-   including the named protocols P1-P8.
+   including the named protocols P1-P9.
 2. List the skills in .agents/skills/ and read the hackathon-architect skill.
 3. Load and follow the hackathon-architect skill for this task.
-4. Note that BUILD.md may not exist yet; you will create it.
+4. Confirm no BUILD1.md exists yet. If one does, stop and tell me - we are not at
+   Hour 0 and a later stage belongs to a different prompt.
 
-This is an ANALYSIS AND PLANNING task only. Write NO application code, run no
-scaffolding or generator commands, and install no dependencies. The only files
-you may create or edit are BUILD.md and .gitignore (only if something is
-genuinely missing from it).
+This is an ANALYSIS AND PLANNING task only. Create BUILD1.md. Do not create
+application code. Run no scaffolding or generator commands and install no
+dependencies. The only files you may create or edit are BUILD1.md and .gitignore
+(only if something is genuinely missing from it).
 
 Analyze the problem statement below and produce:
 
@@ -126,24 +140,28 @@ Analyze the problem statement below and produce:
 
 11. WHAT SHOULD NOT BE BUILT YET: an explicit list. Be blunt.
 
-Then create BUILD.md in the workspace root with exactly these sections:
-  1. Problem & Primary Journey
-  2. Scope: MUST / SHOULD / NICE / NOT YET
-  3. Stack & Key Decisions (decision - reason - rejected alternative)
-  4. How to Run (setup, run, verify commands)
-  5. Architecture Map
-  6. Data Shapes
-  7. Extension Seams
-  8. Core Flow Test (the observable success sentence)
-  9. Build Order
-  10. Risks & Fallbacks
-  11. Stage Log
-  12. Known Limitations
-  13. Demo Script (leave as a placeholder heading for later)
+Then create BUILD1.md in the workspace root - the frozen Hour 0 architecture
+record - with exactly these sections:
+  Problem & Primary Journey
+  Scope: MUST / SHOULD / NICE / NOT YET
+  Stack & Key Decisions (decision - reason - rejected alternative)
+  How to Run (setup, run, verify commands as planned)
+  Architecture
+  Data Shapes
+  Extension Seams
+  Core Flow Test (the observable success sentence - the baseline regression
+    check for the whole hackathon)
+  Build Order
+  Risks & Fallbacks
+  Not To Be Built Yet
+  Stage Outcome (leave as an empty heading; the MVP build appends here)
 
-Keep BUILD.md short enough to be read in full at the start of every stage.
+Keep BUILD1.md short enough to be read in full at the start of any stage. Once
+written, its planning sections are frozen: later stages get their own numbered
+documents (BUILD2.md, BUILD3.md, ...). Do not create a mutable BUILD.md and do
+not create BUILD-LAST.md.
 
-STOP after the analysis and BUILD.md are complete. Do not begin implementation.
+STOP after the analysis and BUILD1.md are complete. Do not begin implementation.
 End your reply with the summary, the not-yet list, and any blocking question.
 
 --- MAIN PROBLEM STATEMENT ---
@@ -156,7 +174,7 @@ End your reply with the summary, the not-yet list, and any blocking question.
 ==============================================================================
 SECTION 2 - BUILD INITIAL MVP
 TOOL: ANTIGRAVITY
-USE WHEN: BUILD.md exists and the architecture is approved. Nothing built yet.
+USE WHEN: BUILD1.md exists and the architecture is approved. Nothing built yet.
 ==============================================================================
 
 >>> COPY FROM HERE
@@ -167,27 +185,28 @@ create a nested project folder, and do not delete or modify AGENTS.md,
 .agents/skills/, .gitignore, or the Git configuration.
 
 Do this first, in order:
-1. Read AGENTS.md and follow it as binding rules, including protocols P1-P8.
-2. Read BUILD.md in full, especially sections 2 (scope), 3 (stack), 4 (how to
-   run), 8 (core flow test) and 9 (build order).
+1. Read AGENTS.md and follow it as binding rules, including protocols P1-P9.
+2. Read BUILD1.md and the current workspace. BUILD1.md is the frozen Hour 0
+   architecture record: Scope, Stack & Key Decisions, How to Run, Core Flow Test,
+   Build Order.
 3. List the skills in .agents/skills/ and read the mvp-builder skill.
 4. Load and follow the mvp-builder skill for this task.
 5. Inspect the current workspace contents before creating anything, and preserve
    everything already present.
 
-Your task: implement the approved MVP from BUILD.md.
+Your task: implement the approved MVP from BUILD1.md.
 
 Rules:
-- Follow the architecture and stack in BUILD.md. Deviate only for a concrete
+- Follow the architecture and stack in BUILD1.md. Deviate only for a concrete
   technical reason - for example the toolchain is unavailable or a dependency
-  cannot install here. If you deviate, say so explicitly, explain why, and
-  record it in BUILD.md section 3.
+  cannot install here. If you deviate, say so explicitly, explain why, and record
+  it in the Stage Outcome section (see below) rather than editing the plan.
 - Confirm the required toolchain is actually available by running version
   commands before scaffolding.
 - Build ONE complete end-to-end vertical slice: data shape -> core operation ->
   trigger/entry point -> visible output -> wired together. A finished narrow path
   beats several half-built components.
-- Implement only the MUST items from BUILD.md section 2. Do not add features that
+- Implement only the MUST items from BUILD1.md Scope. Do not add features that
   are not in the plan. Working functionality outranks polish, styling, and
   animation at this stage.
 - Keep the code simple and easy to modify: small files, honest names, existing
@@ -208,16 +227,17 @@ Then verify for real (protocol P3). Do not claim anything works because code was
 written:
 1. Run the build / compile / typecheck / import path and get it clean.
 2. Actually start the application or execute the entry point.
-3. Walk the BUILD.md section 8 core flow yourself and observe the expected result.
+3. Walk the BUILD1.md Core Flow Test yourself and observe the expected result.
 4. Fix every error you find with targeted changes. If the same fix fails twice,
    stop and re-diagnose the root cause instead of trying variants.
 
 Then finish:
-- Update BUILD.md: correct section 4 to the commands that actually work, fill
-  section 5 architecture map, adjust section 6 data shapes, append one line to
-  section 11 stage log, and record anything degraded in section 12.
-- Create or update README.md with a one-line description, setup, run command,
-  and how to see the core flow work.
+- Do NOT rewrite BUILD1.md's planning sections. APPEND to its "Stage Outcome"
+  section instead: what was actually built, the run commands that really work
+  and any drift from the planned ones, any deviation from the plan and why,
+  deferred SHOULD/NICE items, and known limitations.
+- Create or update README.md - the always-current run document - with a one-line
+  description, setup, run command, and how to see the core flow work.
 - Create a LOCAL Git commit checkpoint only after verification passed. Stage the
   intended paths, do not blindly add everything, and do not push anywhere.
   Message: "stage-0: working MVP - <what now works>"
@@ -249,18 +269,26 @@ stack or re-scaffold anything. The existing structure, stack, and conventions
 are fixed inputs.
 
 Do this first, in order:
-1. Read AGENTS.md and follow it as binding rules, including protocols P1-P8.
-2. Read BUILD.md in full, especially section 5 architecture map, section 6 data
-   shapes, section 7 extension seams, section 8 core flow test, and section 11
-   stage log.
-3. List the skills in .agents/skills/ and read the feature-integrator skill.
-4. Load and follow the feature-integrator skill for this task.
-5. Inspect the CURRENT codebase before concluding anything: list the tree, read
+1. Read AGENTS.md and follow it as binding rules, including protocols P1-P9.
+2. Establish the build-document state: list all BUILD*.md files in the root, note
+   the highest existing number N, and plan to create BUILD[N+1].md for this stage.
+   Never overwrite an existing one.
+3. Read BUILD1.md (original architecture, Scope, Core Flow Test) and the newest
+   one or two stage documents (latest intent and their Stage Outcome blocks).
+   Skim earlier ones only for decisions that bear on this requirement.
+4. List the skills in .agents/skills/ and read the feature-integrator skill.
+5. Load and follow the feature-integrator skill for this task.
+6. Inspect the CURRENT codebase before concluding anything: list the tree, read
    the files likely involved, and search for the domain terms in the requirement.
    Related logic often already exists under a different name.
 
-This is an ANALYSIS AND PLANNING task. Do NOT implement the feature. Do not edit
-application code.
+SOURCE OF TRUTH: the actual code, then the newest BUILD document, then earlier
+BUILD documents, then Git history. Never assume an older document still describes
+the implementation. Where a document and the code disagree, the code wins - note
+the discrepancy in your report.
+
+This is an ANALYSIS AND PLANNING task. Do NOT implement the feature and do not
+edit application code. You WILL create this stage's BUILD[N+1].md.
 
 Produce:
 
@@ -273,9 +301,10 @@ Produce:
      cheapest to implement and easiest to extend, and state it. Raise it as a
      question to me only if the ambiguity genuinely changes the design.
 
-2. CURRENT-STATE FINDINGS: what already exists that is relevant, including any
-   partial support for this requirement, and the existing pattern for this class
-   of change (how the last similar piece was added).
+2. WHAT ALREADY EXISTS: verified against the code, not the documents - including
+   any partial support for this requirement, and the existing pattern for this
+   class of change (how the last similar piece was added). Flag any place where a
+   BUILD document no longer matches reality.
 
 3. IMPACT MAP, in this exact form:
    Touch:   <file> - <what changes and why>
@@ -307,12 +336,29 @@ Produce:
 8. SCOPE CUT LINE: if implementation runs long, the minimum version that still
    satisfies the requirement, and what gets dropped first.
 
-Update BUILD.md ONLY if an important architectural decision, data shape, run
-command, or scope boundary actually changes. Always leave the stage log entry to
-the implementation step. Do not rewrite BUILD.md for cosmetic reasons.
+9. WHAT MUST REMAIN UNCHANGED: the working behaviour and files this stage must
+   not disturb.
+
+Then create BUILD[N+1].md in the workspace root - this stage's record - with
+these sections:
+  Requirement (exact wording as announced)
+  Acceptance Test
+  What Already Exists (verified against the code)
+  Relevant Prior Context (decisions from earlier BUILD files that constrain this)
+  Affected Files & Components (the Touch / Add / Reuse map)
+  Integration Strategy (chosen option + why cheaper ones were rejected)
+  Regression Risks (each with how it will be checked)
+  Implementation Plan (numbered, each step independently verifiable)
+  Architectural Decisions This Stage ("none" is a valid answer)
+  Must Remain Unchanged
+  Scope Cut Line
+  Stage Outcome (leave as an empty heading; filled in after implementation)
+
+Do not touch BUILD1.md or any earlier stage document. Do not create a mutable
+BUILD.md and do not create BUILD-LAST.md.
 
 End with the implementation plan formatted so I can hand it straight to another
-agent for implementation.
+agent for implementation, and tell me which BUILD number you created.
 
 --- NEW FEATURE REQUIREMENT ---
 [PASTE NEW FEATURE REQUIREMENT HERE]
@@ -336,12 +382,15 @@ re-scaffold, do not change the stack, do not create a parallel project, and do
 not modify AGENTS.md, .agents/skills/, or the Git configuration.
 
 Do this first, in order:
-1. Read AGENTS.md and follow it as binding rules, including protocols P1-P8.
-2. Read BUILD.md in full, especially sections 4, 5, 6, 7 and 8.
+1. Read AGENTS.md and follow it as binding rules, including protocols P1-P9.
+2. Read the newest BUILD[number].md - the stage record created for this
+   requirement - in full. Then read BUILD1.md for the original architecture and
+   the Core Flow Test, and any earlier stage document the plan references.
 3. List the skills in .agents/skills/ and read the feature-integrator skill.
 4. Load and follow the feature-integrator skill for this task.
-5. Inspect the CURRENT codebase and read every file the plan says you will touch
-   before editing it. No edits to unread files.
+5. Inspect the ACTUAL current codebase and read every file the plan says you will
+   touch before editing it. No edits to unread files. The code is the source of
+   truth; if it contradicts a document, trust the code and say so.
 
 Then implement the plan below.
 
@@ -358,29 +407,36 @@ Rules:
   conventions. Reuse existing helpers and components instead of adding parallel
   ones.
 - Do not add features, screens, options, or refactors that the requirement did
-  not ask for. If you spot an unrelated defect, note it in BUILD.md section 12
-  and leave it alone unless it blocks this feature.
+  not ask for. Respect the stage document's "Must Remain Unchanged" list. If you
+  spot an unrelated defect, note it for the Stage Outcome block and leave it alone
+  unless it blocks this feature.
 - Add a new dependency only if the plan calls for it. Pin the exact version.
 - Work in small steps and keep the project runnable between them.
 - If you are past roughly 60 percent of your time and the feature is not close,
-  fall back to the plan's scope cut line, note what was cut in BUILD.md
-  section 2, and finish something that works.
+  fall back to the plan's Scope Cut Line, record what was cut, and finish
+  something that works.
 
 Then verify for real (protocol P3). Do not claim success from written code:
 1. Build / compile / typecheck cleanly.
 2. Start the application or run the entry point cleanly.
 3. Run the acceptance test for the new feature and observe the expected result.
-4. Run the BUILD.md section 8 core flow test - it must still pass.
-5. Test every item on the plan's at-risk list, including whether previously
-   created or stored data still loads correctly.
+4. Run the BUILD1.md Core Flow Test - it must still pass.
+5. Test every item on the plan's Regression Risks and Must Remain Unchanged
+   lists, including whether previously created or stored data still loads
+   correctly.
 6. Check logs and console for new errors.
 7. Fix verified regressions with minimal targeted changes, then re-run steps
    1-4. If the same fix fails twice, stop and re-diagnose the root cause.
 
 Then finish:
-- Append one line to BUILD.md section 11 stage log. Update sections 3, 5, 6 or 7
-  only if something architectural actually changed. Record anything partial or
-  cut in section 12.
+- APPEND to this stage's BUILD[number].md under "Stage Outcome": what was
+  actually built, what was verified and how, what was cut or deferred, any
+  deviation from the plan and why, and new known limitations. Leave the planning
+  sections above it exactly as written.
+- Update README.md if the run commands or the user-visible feature set changed.
+- Do NOT edit, rename, or delete BUILD1.md or any earlier stage document. If an
+  earlier document is now factually wrong about the code, append a one-line
+  [correction] note there and mention it in your report.
 - Create a LOCAL Git commit checkpoint only after verification passed. Stage the
   intended paths only. Do not push anywhere.
   Message: "stage-<N>: <feature> - <what now works>"
@@ -413,9 +469,10 @@ is ONE continuously evolving project with several stages of features already in
 it. Your job is verification and minimal fixes only.
 
 Do this first, in order:
-1. Read AGENTS.md and follow it as binding rules, including protocols P1-P8.
-2. Read BUILD.md, especially section 8 core flow test and section 11 stage log,
-   so you know which features are supposed to exist.
+1. Read AGENTS.md and follow it as binding rules, including protocols P1-P9.
+2. Read the newest BUILD[number].md for this stage's Acceptance Test, Regression
+   Risks, and Must Remain Unchanged list, plus BUILD1.md for the Core Flow Test.
+   The BUILD documents give intended behaviour; the running code is the truth.
 3. List the skills in .agents/skills/ and read the regression-guardian skill.
 4. Load and follow the regression-guardian skill for this task.
 
@@ -435,19 +492,21 @@ high-visibility paths and stop when time runs out, but always finish Tier 1.
   TIER 1 - always:
     a. Build / compile / typecheck / import cleanly.
     b. Application starts or entry point executes without errors.
-    c. The newest feature's acceptance behaviour works.
-    d. The BUILD.md section 8 core user flow works end to end.
+    c. The newest stage's Acceptance Test works.
+    d. The BUILD1.md Core Flow Test works end to end.
 
   TIER 2 - the affected surface:
     e. Each existing behaviour that shares a code path with the recent changes.
     f. Data continuity: previously created or stored data still loads and renders.
     g. Earlier-stage features that consume a changed data shape or signature.
+    h. Everything on the current stage's Must Remain Unchanged list.
 
   TIER 3 - only if time allows:
-    h. Remaining earlier features not obviously affected.
-    i. Realistic demo failure inputs: empty state, missing config, invalid input,
+    i. Remaining earlier features not obviously affected - the BUILD[number].md
+       series is a useful checklist of what should exist by now.
+    j. Realistic demo failure inputs: empty state, missing config, invalid input,
        failed external call.
-    j. A clean-copy run: copy or clone the committed state to a temporary folder,
+    k. A clean-copy run: copy or clone the committed state to a temporary folder,
        install from the lock file, and run it.
 
 Do not spend time on exotic edge cases, load testing, or exhaustive input
@@ -487,7 +546,11 @@ Step 5 - Report exactly in this shape:
   - <area> - <not affected / no time / out of scope>
 
   KNOWN LIMITATIONS
-  - <also add these to BUILD.md section 12>
+  - <append these to the current stage's BUILD[number].md Stage Outcome>
+
+  DOCUMENT DRIFT
+  - <where a BUILD document no longer matches the code - report only, never
+     rewrite history and never change working code to match an old plan>
 
 If you made fixes and Tier 1 passes again, create a LOCAL Git commit. Do not
 push anywhere. Message: "fix: <what was repaired>"
@@ -510,9 +573,12 @@ state outranks everything else. Git is local only - never push, and never run a
 destructive Git command without asking me first.
 
 Do this first, in order:
-1. Read AGENTS.md and follow it as binding rules, including protocols P1-P8.
+1. Read AGENTS.md and follow it as binding rules, including protocols P1-P9.
 2. List the skills in .agents/skills/ and read the emergency-recovery skill.
 3. Load and follow the emergency-recovery skill for this task.
+Git history is the record of what changed; the newest BUILD[number].md says what
+the change was trying to do. Use documents for intent only - the error and the
+code are the evidence.
 
 STEP 0 - STOP. Make no edits until steps 1-3 are done. Do not install, upgrade,
 or remove dependencies as a guess. Do not clean anything up. Do not restart the
@@ -534,7 +600,8 @@ STEP 2 - Inspect the change history before editing anything:
   git log --oneline -10
 Ask what is different between the last known working commit and now.
 Uncommitted changes are the prime suspect. Also look for changes you did not
-intend, such as rewritten config or lock files.
+intend, such as rewritten config or lock files, and for work that strayed outside
+the current stage document's planned diff surface.
 
 STEP 3 - State ONE root cause hypothesis in the form: "X fails because Y,
 introduced by Z." Check it against the evidence before touching code. If you
@@ -558,21 +625,23 @@ options to me, with the cost of each, and recommend one:
   - shelve the broken uncommitted work with: git stash push -m "wip-broken"
   - branch from the last good commit and re-apply the feature minimally
   - reinstall dependencies from the lock file if the environment is corrupt
-  - switch to the pre-decided fallback in BUILD.md section 10 if an external
-    dependency is failing
+  - switch to the pre-decided fallback in BUILD1.md Risks & Fallbacks if an
+    external dependency is failing
 Do not run reset --hard, clean -f, force push, or branch deletion. Ask me before
 any operation that discards work.
 
 STEP 6 - Verify before claiming recovery:
   a. Build / compile / typecheck cleanly.
   b. Application starts or entry point runs cleanly.
-  c. The BUILD.md section 8 core flow works.
+  c. The BUILD1.md Core Flow Test works.
   d. The most recently added feature works, or is explicitly reported as
      reverted or degraded.
   e. No new errors introduced by the fix itself.
 
-Then create a LOCAL Git commit: "fix: recover from <failure> - <cause>". Note any
-shelved or reverted work in BUILD.md section 12 so it is not forgotten.
+Then create a LOCAL Git commit: "fix: recover from <failure> - <cause>". Append
+any shelved or reverted work to the current stage's BUILD[number].md Stage Outcome
+so it is not forgotten. Do not rewrite a stage plan to match what you ended up
+with, and do not delete a stage document because its feature was reverted.
 
 Report:
   FAILURE: <the actual error>
@@ -598,9 +667,11 @@ D:\AGENTX24. From now until I say otherwise, the code is frozen: no new
 features, no refactors, no polish. Only submission-blocking fixes.
 
 Do this first, in order:
-1. Read AGENTS.md and follow it as binding rules, including protocols P1-P8.
-2. Read BUILD.md, especially section 4 how to run, section 8 core flow test,
-   section 11 stage log, and section 12 known limitations.
+1. Read AGENTS.md and follow it as binding rules, including protocols P1-P9.
+2. Read README.md for the current run instructions, the newest BUILD[number].md
+   for this stage's feature and known limitations, and BUILD1.md for the Core Flow
+   Test. Documents are context; everything you certify must be observed in the
+   running project.
 3. List the skills in .agents/skills/ and read the submission-manager skill.
 4. Load and follow the submission-manager skill for this task.
 
@@ -611,6 +682,8 @@ Hard constraints:
   it and ask me. The only exception is content that is already ignored by
   .gitignore and therefore not part of the repository anyway.
 - Do NOT modify AGENTS.md or .agents/skills/.
+- Do NOT edit, tidy, rename, or delete any BUILD[number].md file. They are
+  historical records and must ship as-is.
 - If the organizer requirements below conflict with anything here, the organizer
   requirements win. If they are empty or unclear on a point, use the defaults
   here and tell me what you assumed.
@@ -632,12 +705,15 @@ Do this:
 2. DOES IT RUN FROM THE COMMITTED STATE:
    - Confirm every file needed to run is tracked (check git ls-files against the
      project tree), especially recently added source, assets, schemas, and config.
+     Every BUILD[number].md must also be tracked.
    - Run the build / compile / typecheck and get it clean.
    - Start the application or run the entry point.
-   - Walk the BUILD.md section 8 core flow and observe it working.
-   - Confirm the newest stage feature works.
-   - Confirm the run instructions in README.md and BUILD.md section 4 match the
-     commands that actually work, including any required environment variables.
+   - Walk the BUILD1.md Core Flow Test and observe it working.
+   - Confirm the newest stage's Acceptance Test passes.
+   - Confirm the run instructions in README.md match the commands that actually
+     work, including any required environment variables. README.md is the
+     current-state document; a stale "How to Run" inside BUILD1.md is expected and
+     is not a defect.
    - If time allows, copy the committed state to a temporary folder, install from
      the lock file, and run it there. This catches missing files and hardcoded
      local paths.
@@ -654,7 +730,8 @@ Do this:
    What must ship: all source, assets, schemas and config needed to run; lock and
    pin files; the dependency manifest; an example environment file with
    placeholder values documenting every required variable; README.md with setup
-   and run steps; BUILD.md; AGENTS.md; plus anything the organizers require.
+   and run steps; every BUILD[number].md; AGENTS.md; plus anything the organizers
+   require.
 
 4. PACKAGE - only if the organizer requirements call for an archive:
    - Commit locally and optionally tag the submission point, e.g.
@@ -679,14 +756,16 @@ Do this:
    [PASS/FAIL] Core flow observed working - <what was observed>
    [PASS/FAIL] Stage <N> feature observed working - <what was observed>
    [PASS/FAIL] Run instructions match reality
-   [PASS/FAIL] All required files tracked (clean-copy run: yes/no)
+   [PASS/FAIL] All required files tracked, incl. every BUILD[number].md
+               (clean-copy run: yes/no)
    [PASS/FAIL] Lock file, manifest and config included
    [PASS/FAIL] No secrets tracked
    [PASS/FAIL] No dependency directories, caches or build junk tracked
+   [PASS/FAIL] No historical BUILD document was modified
    [PASS/FAIL] Archive or package verified - <local path, if applicable>
 
    EXCLUDED ON PURPOSE: <unverified or broken work left out>
-   KNOWN LIMITATIONS: <from BUILD.md section 12>
+   KNOWN LIMITATIONS: <from the newest Stage Outcome, verified against the app>
    ITEMS NEEDING MY DECISION: <anything you refused to delete or change>
 
 --- ORGANIZER SUBMISSION REQUIREMENTS ---
@@ -708,8 +787,11 @@ Polish the hackathon project at D:\AGENTX24 for demonstration. This is ONE
 continuously evolving working project.
 
 Do this first, in order:
-1. Read AGENTS.md and follow it as binding rules, including protocols P1-P8.
-2. Read BUILD.md, especially section 1 primary journey and section 8 core flow.
+1. Read AGENTS.md and follow it as binding rules, including protocols P1-P9.
+2. Read BUILD1.md for the Problem & Primary Journey and the Core Flow Test, and
+   the newest BUILD[number].md to know which features exist and what must remain
+   unchanged. Then judge the app by what it actually does when you run it, not by
+   what any document claims.
 3. List the skills in .agents/skills/ and read the demo-polisher skill.
 4. Load and follow the demo-polisher skill for this task.
 
@@ -761,18 +843,21 @@ Hard limits:
 - Do NOT trade reliability for visual flair.
 - Do NOT polish screens that are not on the demo path.
 - Do NOT modify AGENTS.md or .agents/skills/.
+- Do NOT edit earlier BUILD[number].md files.
 
-Then verify: build cleanly, start the app, re-run the core flow, and check every
-screen or output you touched. Cosmetic edits break layouts and bindings more
-often than expected - verify, do not assume.
+Then verify: build cleanly, start the app, re-run the BUILD1.md Core Flow Test,
+and check every screen or output you touched. Cosmetic edits break layouts and
+bindings more often than expected - verify, do not assume.
 
-Then write the demo script into BUILD.md section 13:
+Then APPEND a "Demo Script" block to the CURRENT (highest-numbered)
+BUILD[number].md, inside or directly after its Stage Outcome section:
   Setup:      commands and prerequisites to have it running
   Reset:      how to return to a clean demo state
   Path:       numbered steps - action -> what the judge sees
   Talk track: the one-sentence value proposition
   Avoid:      known-fragile areas not to click during the demo
   Fallback:   what to do if a live step fails
+If the polish changed how the app is started or presented, update README.md too.
 
 If everything still works, create a LOCAL Git commit: "polish: <what improved>".
 Do not push anywhere.
@@ -832,8 +917,9 @@ install nothing.
 Inspect:
 1. The current project structure (top levels plus the main source areas, skipping
    ignored dependency and build directories).
-2. BUILD.md - scope, stack, how to run, core flow test, stage log, known
-   limitations.
+2. The BUILD[number].md history: list every BUILD*.md, note the highest number,
+   read BUILD1.md scope and Core Flow Test plus the newest stage document. Treat
+   these as intent, not as proof of what exists.
 3. git status
 4. git log --oneline -10
 5. If it is quick and safe, run the build and start the application or entry
@@ -841,13 +927,17 @@ Inspect:
    report the state as unverified rather than guessing.
 
 Report, briefly:
-- CURRENT STAGE: which stage we are on, from the BUILD.md stage log and commits.
+- CURRENT STAGE: which stage we are on, from the highest BUILD number and the
+  commit history. Also state the next BUILD number to be created.
 - STATUS: GREEN (builds, runs, core flow works) / YELLOW (runs but something is
   degraded or unverified - name it) / RED (does not build or run) / UNVERIFIED
   (could not check - say why).
-- WHAT IS WORKING: features confirmed present, and how you confirmed each.
+- WHAT IS WORKING: features confirmed present in the code, and how you confirmed
+  each.
 - MOST RECENT CHANGES: the last commits and any uncommitted work in the tree.
-- KNOWN PROBLEMS: from BUILD.md section 12, plus anything you just observed.
+- KNOWN PROBLEMS: from the newest Stage Outcome blocks, plus anything you just
+  observed.
+- DOCUMENT DRIFT: anything a BUILD document claims that the code does not match.
 - RECOMMENDED NEXT ACTION: one concrete next step, and which prompt section of
   HACKATHON_PROMPTS.txt to use for it.
 

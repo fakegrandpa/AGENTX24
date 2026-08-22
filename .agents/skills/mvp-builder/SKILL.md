@@ -3,13 +3,13 @@ name: mvp-builder
 description: >-
   Implement the approved MVP directly inside the existing AGENTX24 root as one working end-to-end
   vertical slice: scaffold, core logic, minimal interface, real run, fixes, verified core flow, and a
-  green Git checkpoint. Use once BUILD.md exists and nothing is built yet (Stage 0). Do not use for
+  green Git checkpoint. Use once BUILD1.md exists and nothing is built yet (Stage 0). Do not use for
   later feature requirements.
 ---
 
 # MVP Builder
 
-Read `AGENTS.md`, then `BUILD.md` (scope, stack, run commands, build order, core flow test). Inspect the workspace before scaffolding (P1) — an earlier partial setup may already exist.
+Read `AGENTS.md` (including P9 on numbered immutable build documents), then `BUILD1.md` — scope, stack, run commands, build order, core flow test. Inspect the workspace before scaffolding (P1) — an earlier partial setup may already exist.
 
 Goal: **a demoable end-to-end flow as early as possible**, built in the project root, not in a subproject.
 
@@ -19,9 +19,9 @@ Time box: aim for a first running slice within **60 minutes**, fully verified an
 
 ## Step 1 — Ground yourself (5 min)
 
-- Read `BUILD.md` §2, §3, §4, §8, §9.
-- List the workspace root. Identify anything already present that must be preserved (`AGENTS.md`, `.agents/`, `BUILD.md`, config files, any prior scaffold).
-- Confirm required toolchain versions are actually available by running the version commands. If the chosen stack is not installable here, stop and report (P7) — do not silently substitute a different stack from `BUILD.md`.
+- Read `BUILD1.md` in full: `Scope`, `Stack & Key Decisions`, `How to Run`, `Core Flow Test`, `Build Order`.
+- List the workspace root. Identify anything already present that must be preserved (`AGENTS.md`, `.agents/`, `BUILD1.md`, config files, any prior scaffold).
+- Confirm required toolchain versions are actually available by running the version commands. If the chosen stack is not installable here, stop and report (P7) — do not silently substitute a different stack from `BUILD1.md`.
 
 ## Step 2 — Scaffold minimally (10 min)
 
@@ -44,7 +44,7 @@ Implement in this order, and get each layer minimally working before moving on:
 
 Rules while building:
 - **One flow, complete.** A finished narrow path beats four half-built components. If the clock runs out, a working slice is a demo; disconnected pieces are nothing.
-- **Required / nice / unnecessary:** implement only `BUILD.md` MUST items now. Note SHOULD/NICE items in `BUILD.md` §2 and move on. Anything not in the plan is unnecessary work — do not add it.
+- **Required / nice / unnecessary:** implement only the MUST items from `BUILD1.md` → `Scope`. Note deferred SHOULD/NICE items for the `Stage Outcome` block and move on. Anything not in the plan is unnecessary work — do not add it.
 - Use reliable libraries for solved problems; do not hand-roll.
 - Hardcoded seed or sample data is acceptable and often correct at this stage, as long as it is clearly labelled and not passed off as computed output.
 - Handle the failure paths the demo will realistically hit (empty input, missing config, failed external call) with a clear message instead of a crash. Skip exhaustive validation.
@@ -53,15 +53,17 @@ Rules while building:
 ## Step 4 — Run it for real, then fix (P3)
 
 - Start the app / execute the entry point. Fix errors until it starts clean.
-- Walk the `BUILD.md` §8 core flow test yourself and observe the expected output.
+- Walk the `BUILD1.md` → `Core Flow Test` yourself and observe the expected output.
 - Re-run the build/compile/typecheck path so the committed state is not only dev-server-valid.
 - Fix what you found. Prefer targeted fixes; if a fix keeps failing twice, re-diagnose rather than retry variants (P7).
 - Note anything degraded but working as a limitation rather than silently leaving it.
 
 ## Step 5 — Document and checkpoint
 
-- Update `BUILD.md`: correct §4 run commands to what you actually ran, fill §5 architecture map, adjust §6 data shapes, add the Stage 0 line to §11, record limitations in §12.
-- Create a short `README.md`: one-line description, setup, run command, how to see the core flow work.
+Do not rewrite the planning sections of `BUILD1.md` (P9). Instead:
+
+- **Append** to the `Stage Outcome` section of `BUILD1.md`: what was actually built, the run commands that actually work (flag any drift from the planned ones), any deviation from the planned architecture and why, deferred SHOULD/NICE items, and known limitations.
+- Create a short `README.md` — the always-current run doc: one-line description, setup, run command, how to see the core flow work.
 - Green checkpoint (P4): `stage-0: working MVP — <core flow in a few words>`.
 
 ---
@@ -71,11 +73,12 @@ Rules while building:
 - Creating a nested project folder instead of building in the root.
 - Building infrastructure (auth, admin, settings, logging framework, tests-for-everything, CI) before the core flow works.
 - Polishing visuals before the flow is verified — that is `demo-polisher`, later, and only when green.
-- Adding features not in `BUILD.md` because they seemed easy.
+- Adding features not in `BUILD1.md` because they seemed easy.
 - Placeholder UI wired to nothing, presented as progress.
 - Committing before the flow was observed working.
 - Rewriting the scaffold because you prefer a different structure.
 - Reporting "MVP complete" based on written code rather than a run.
+- Rewriting `BUILD1.md`'s planning sections, or creating a mutable `BUILD.md`, instead of appending to `Stage Outcome`.
 
 ## Definition of done
 
@@ -83,8 +86,8 @@ Rules while building:
 - [ ] `.gitignore` covers dependencies, build output, caches, and env files.
 - [ ] One complete trigger → core → output flow implemented.
 - [ ] Build/compile/typecheck passes; app starts clean.
-- [ ] `BUILD.md` §8 core flow observed producing the expected result, with commands reported.
-- [ ] `BUILD.md` §4, §5, §11, §12 updated; `README.md` created.
+- [ ] `BUILD1.md` → `Core Flow Test` observed producing the expected result, with commands reported.
+- [ ] `BUILD1.md` → `Stage Outcome` appended; planning sections untouched; `README.md` created.
 - [ ] Green checkpoint committed.
 - [ ] Status reported as GREEN/YELLOW with known limitations named (P8).
 

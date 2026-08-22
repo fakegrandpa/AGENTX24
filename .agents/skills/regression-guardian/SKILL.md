@@ -10,7 +10,9 @@ description: >-
 
 # Regression Guardian
 
-Practical QA under a clock, not a test-coverage project. Read `AGENTS.md`; use `BUILD.md` §8 for the core flow test.
+Practical QA under a clock, not a test-coverage project. Read `AGENTS.md`.
+
+The **current code and its observed behaviour are the truth**. Build documents supply intent and regression context only: `BUILD1.md` → `Core Flow Test` is the baseline check, and each `BUILD<n>.md` names that stage's `Acceptance Test`, `Regression Risks`, and `Must Remain Unchanged` list. Read the newest stage document plus `BUILD1.md`; skim earlier ones only when tracing which stage introduced a behaviour. If a document and the code disagree, the code wins — report the drift, do not "fix" the code to match an old plan.
 
 You verify and make **minimal** fixes. You do not improve, restructure, or clean code.
 
@@ -39,18 +41,19 @@ Test in this order and stop when the clock forces you to:
 **Tier 1 — must always run**
 1. Build / compile / typecheck / import cleanly.
 2. App starts or entry point executes without errors.
-3. The new feature's acceptance test.
-4. `BUILD.md` §8 core flow.
+3. The newest stage's `Acceptance Test` (from its `BUILD<n>.md`).
+4. The `Core Flow Test` from `BUILD1.md`.
 
 **Tier 2 — affected surface**
 5. Each existing behaviour identified in Step 1 as sharing a code path with the change.
 6. Data continuity: does previously created/stored data still load and render?
 7. Any earlier feature that consumes a changed data shape or function signature.
+8. Everything on the current stage's `Must Remain Unchanged` list.
 
 **Tier 3 — if time allows**
-8. Remaining earlier features not obviously affected.
-9. The realistic failure inputs the demo could hit: empty state, missing config, invalid input, external call failure.
-10. A clean-checkout setup run (fresh dependency install into a temp clone) — high value right before a submission.
+9. Remaining earlier features not obviously affected — the stage documents are a useful checklist of what should exist.
+10. The realistic failure inputs the demo could hit: empty state, missing config, invalid input, external call failure.
+11. A clean-checkout setup run (fresh dependency install into a temp clone) — high value right before a submission.
 
 Do **not** spend hackathon time on exotic edge cases, load testing, browser matrices, or exhaustive input fuzzing.
 
@@ -61,7 +64,7 @@ For each test, record the command or action, and the observed result. Never mark
 Classify every issue:
 - **VERIFIED FAILURE** — observed, reproducible. Fix now.
 - **SUSPECTED** — reasoning suggests a problem but it was not reproduced. Either spend 2 minutes reproducing it, or report it as suspected. Never fix a suspicion by rewriting code.
-- **COSMETIC / LOW** — visible but harmless. Log it in `BUILD.md` §12 or hand it to `demo-polisher`.
+- **COSMETIC / LOW** — visible but harmless. Record it in the current stage's `Stage Outcome` block or hand it to `demo-polisher`.
 
 Priority when several failures exist: RED (won't build/run) → core flow broken → new feature broken → older feature broken → cosmetic.
 
@@ -95,7 +98,10 @@ NOT TESTED (and why)
 - <area> — <out of scope / no time / not affected>
 
 KNOWN LIMITATIONS
-- <carried forward into BUILD.md §12>
+- <appended to the current stage's Stage Outcome block>
+
+DOCUMENT DRIFT
+- <where a BUILD document no longer matches the code; report only, do not rewrite history>
 ```
 
 Commit fixes as a green checkpoint (P4) once Tier 1 passes again.
@@ -112,6 +118,8 @@ Commit fixes as a green checkpoint (P4) once Tier 1 passes again.
 - Expanding a fix into surrounding cleanup.
 - Blocking a submission over a cosmetic issue.
 - Silently dropping known limitations from the report.
+- Treating an old build document as the specification and changing working code to match it.
+- Editing earlier `BUILD<n>.md` files.
 
 ## Definition of done
 
@@ -120,7 +128,7 @@ Commit fixes as a green checkpoint (P4) once Tier 1 passes again.
 - [ ] Tier 2 executed for everything the diff put at risk.
 - [ ] Verified failures fixed minimally and re-tested; Tier 1 re-run after fixes.
 - [ ] Report issued with tested / passed / failed / fixed / not-tested / limitations.
-- [ ] `BUILD.md` §12 updated with anything still open.
+- [ ] Anything still open appended to the current stage's `Stage Outcome`; earlier documents untouched.
 - [ ] Green checkpoint committed if fixes were made.
 
 ## Handoff
