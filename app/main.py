@@ -73,7 +73,7 @@ def api_health() -> dict:
         "gemini_model": model_name,
         "gemini_ready": is_ready,
         "gemini_status_message": msg,
-        "has_api_key": bool(GEMINI_API_KEY),
+        "has_api_key": bool(os.getenv("GEMINI_API_KEY", "").strip() or GEMINI_API_KEY),
         "advertised_tools": advertised,
         "providers": get_enabled_providers(),
     }

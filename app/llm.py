@@ -51,24 +51,28 @@ def get_client() -> genai.Client | None:
     return genai.Client(api_key=api_key)
 
 
-# Model resolution is cached: the preflight costs a ListModels round trip, and
-# without caching it ran on every agent turn and every health check, burning
-# free-tier quota and adding latency to each reasoning step.
+# Model resolution is cached per key: the preflight costs a ListModels round trip,
+# and without caching it adds latency to each reasoning step.
 _MODEL_CACHE: tuple[str, bool, str] | None = None
+_MODEL_CACHE_KEY: str | None = None
 
 
 def resolve_model(force_refresh: bool = False) -> tuple[str, bool, str]:
-    """Preflight check to resolve model name (cached per process).
+    """Preflight check to resolve model name (cached per API key).
     Returns: (resolved_model_name, is_ready, status_message)
     """
-    global _MODEL_CACHE
-    if _MODEL_CACHE is not None and not force_refresh:
+    global _MODEL_CACHE, _MODEL_CACHE_KEY
+    load_dotenv(dotenv_path=ROOT_DIR / ".env", override=True)
+    current_key = os.getenv("GEMINI_API_KEY", "").strip() or GEMINI_API_KEY
+
+    if _MODEL_CACHE is not None and not force_refresh and _MODEL_CACHE_KEY == current_key:
         return _MODEL_CACHE
 
     result = _resolve_model_uncached()
     # Only cache successful resolutions so a later key/network fix is picked up.
     if result[1]:
         _MODEL_CACHE = result
+        _MODEL_CACHE_KEY = current_key
     return result
 
 
