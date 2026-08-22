@@ -24,6 +24,8 @@
       </div>
       <span class="topbar-sep" aria-hidden="true">·</span>
       <span class="status-sources" id="status-sources">4 tools online</span>
+      <span class="topbar-sep" aria-hidden="true">·</span>
+      <span class="status-memory mono" id="status-memory">memory —</span>
     </div>
   </header>
 
@@ -32,76 +34,141 @@
     <!-- ============================================ SCREEN 1 — IDLE / ARRIVAL -->
     <section class="screen" id="screen-arrival" aria-labelledby="arrival-title">
       <div class="arrival-layout">
-        <div class="arrival-meta-tag">INTELLIGENCE SYSTEM V2.4</div>
         
-        <h1 class="arrival-title" id="arrival-title">What do you want to understand?</h1>
-        
-        <p class="arrival-description">
-          An autonomous intelligence agent that identifies knowledge gaps, dynamically queries peer-reviewed research, competitor news, patent databases, and web signals, assembling verified evidence into prioritized strategic briefs.
-        </p>
+        <!-- Masthead -->
+        <div class="arrival-masthead">
+          <div class="masthead-rule" aria-hidden="true"></div>
+          <div class="arrival-meta-tag">AUTONOMOUS INTELLIGENCE WORKSPACE</div>
+          <h1 class="arrival-title" id="arrival-title">What do you want to understand?</h1>
+          <p class="arrival-description">
+            An autonomous intelligence agent that identifies knowledge gaps, dynamically queries peer-reviewed research, competitor news, patent databases, and web signals, assembling verified evidence into prioritized strategic briefs.
+          </p>
+        </div>
 
         <form class="investigate-form" id="investigate-form" novalidate>
-          <div class="input-shell" id="input-shell">
-            <div class="input-prefix" aria-hidden="true">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-              </svg>
+          
+          <!-- Framed Primary Input -->
+          <div class="input-frame">
+            <div class="input-frame-head">
+              <label for="target-input" class="input-frame-label">INVESTIGATION OBJECTIVE</label>
+              <span class="input-frame-hint mono">↵ to dispatch</span>
             </div>
-            <input
-              type="text"
-              id="target-input"
-              name="target"
-              placeholder="e.g. NVIDIA competitive strategy & AI hardware moat"
-              autocomplete="off"
-              autofocus
-              aria-label="Investigation objective"
-              aria-describedby="input-error"
-            >
-            <button type="submit" class="btn-investigate" id="btn-investigate">
-              <span>Investigate</span>
-              <kbd class="mono" aria-hidden="true">↵</kbd>
-            </button>
+            
+            <div class="input-shell" id="input-shell">
+              <div class="input-prefix" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+              </div>
+              <input
+                type="text"
+                id="target-input"
+                name="target"
+                placeholder="e.g. NVIDIA competitive strategy & AI hardware moat"
+                autocomplete="off"
+                autofocus
+                aria-label="Investigation objective"
+                aria-describedby="input-error"
+              >
+              <button type="submit" class="btn-investigate" id="btn-investigate">
+                <span>Investigate</span>
+                <kbd class="mono" aria-hidden="true">↵</kbd>
+              </button>
+            </div>
           </div>
           <p class="field-error" id="input-error" role="alert"></p>
 
+          <!-- Suggested Investigation Fragments (2x2 Hairline Grid) -->
           <div class="starter-fragments-section">
-            <div class="fragments-label">SUGGESTED INVESTIGATION FRAGMENTS</div>
+            <div class="fragments-head-row">
+              <span class="fragments-label">SUGGESTED INVESTIGATION FRAGMENTS</span>
+              <span class="fragments-rule" aria-hidden="true"></span>
+              <span class="fragments-hint mono">select to dispatch immediately</span>
+            </div>
             <div class="fragments-grid" id="examples" aria-label="Example investigation queries">
               <button type="button" class="fragment-chip" data-q="NVIDIA competitive strategy & AI hardware moat">
+                <span class="fragment-idx mono">01</span>
                 <span class="fragment-kind mono">COMPETITOR</span>
                 <span class="fragment-text">NVIDIA AI infrastructure moat & data center competition</span>
+                <span class="fragment-arrow" aria-hidden="true">→</span>
               </button>
               <button type="button" class="fragment-chip" data-q="Solid-state battery commercialization barriers & degradation">
+                <span class="fragment-idx mono">02</span>
                 <span class="fragment-kind mono">RESEARCH</span>
                 <span class="fragment-text">Solid-state battery commercialization & chemo-mechanical failure</span>
+                <span class="fragment-arrow" aria-hidden="true">→</span>
               </button>
               <button type="button" class="fragment-chip" data-q="CRISPR base editing off-target safety research">
+                <span class="fragment-idx mono">03</span>
                 <span class="fragment-kind mono">BIOTECH</span>
                 <span class="fragment-text">CRISPR base editing off-target safety & deaminase profiling</span>
+                <span class="fragment-arrow" aria-hidden="true">→</span>
               </button>
               <button type="button" class="fragment-chip" data-q="Quantum error correction hardware patents & benchmarks">
+                <span class="fragment-idx mono">04</span>
                 <span class="fragment-kind mono">PATENTS</span>
                 <span class="fragment-text">Quantum error correction patent landscape & fault-tolerant chips</span>
+                <span class="fragment-arrow" aria-hidden="true">→</span>
               </button>
             </div>
           </div>
 
-          <div class="arrival-foot">
-            <span class="foot-label">SPECIALIZED AGENT ROSTER</span>
-            <div class="active-tools-pills" id="arrival-agents">
-              <span class="tool-pill mono">investigator (Lead Investigator)</span>
-              <span class="tool-pill mono">critic (Evidence Critic)</span>
-              <span class="tool-pill mono">synthesist (Report Synthesist)</span>
+          <!-- Two-Column Capability Ledger -->
+          <div class="capability-ledger" id="capability-ledger">
+            <div class="ledger-col">
+              <div class="ledger-heading">SPECIALIZED AGENT ROSTER</div>
+              <ul class="ledger-list" id="arrival-agents">
+                <li class="ledger-row">
+                  <span class="ledger-code mono">investigator</span>
+                  <div class="ledger-desc">
+                    <span class="ledger-name">Lead Investigator</span>
+                    <span class="ledger-detail">Understand objective and dynamically gather evidence.</span>
+                  </div>
+                </li>
+                <li class="ledger-row">
+                  <span class="ledger-code mono">critic</span>
+                  <div class="ledger-desc">
+                    <span class="ledger-name">Evidence Critic</span>
+                    <span class="ledger-detail">Judge evidence sufficiency and name missing gaps.</span>
+                  </div>
+                </li>
+                <li class="ledger-row">
+                  <span class="ledger-code mono">synthesist</span>
+                  <div class="ledger-desc">
+                    <span class="ledger-name">Report Synthesist</span>
+                    <span class="ledger-detail">Compose prioritized report from verified evidence only.</span>
+                  </div>
+                </li>
+              </ul>
             </div>
-            <span class="foot-label" style="margin-top: 12px; display: block;">DISPATCHABLE PROVIDERS</span>
-            <div class="active-tools-pills" id="arrival-tools">
-              <span class="tool-pill mono">news_search (Google News)</span>
-              <span class="tool-pill mono">research_search (OpenAlex · arXiv)</span>
-              <span class="tool-pill mono">web_search (DuckDuckGo · Wikipedia)</span>
-              <span class="tool-pill mono">patent_search (Google Patents)</span>
+
+            <div class="ledger-col">
+              <div class="ledger-heading">DISPATCHABLE PROVIDERS</div>
+              <ul class="ledger-list" id="arrival-tools">
+                <li class="ledger-row">
+                  <span class="ledger-code mono">news_search</span>
+                  <div class="ledger-desc"><span class="ledger-name">Google News RSS</span></div>
+                </li>
+                <li class="ledger-row">
+                  <span class="ledger-code mono">research_search</span>
+                  <div class="ledger-desc"><span class="ledger-name">OpenAlex · arXiv</span></div>
+                </li>
+                <li class="ledger-row">
+                  <span class="ledger-code mono">web_search</span>
+                  <div class="ledger-desc"><span class="ledger-name">DuckDuckGo · Wikipedia</span></div>
+                </li>
+                <li class="ledger-row">
+                  <span class="ledger-code mono">patent_search</span>
+                  <div class="ledger-desc"><span class="ledger-name">Google Patents</span></div>
+                </li>
+              </ul>
+              <div class="ledger-memory-note mono" id="arrival-memory-note">
+                Persistent investigation memory: 0 records
+              </div>
             </div>
           </div>
+
         </form>
       </div>
     </section>
@@ -139,11 +206,33 @@
         </div>
       </div>
 
+      <!-- Agent Relay Strip (3 Stations with Handoff Connectors) -->
+      <div class="agent-relay" id="agent-relay" aria-label="Multi-Agent Relay Handoffs">
+        <div class="relay-station is-standby" id="relay-investigator">
+          <span class="relay-marker" aria-hidden="true"></span>
+          <span class="relay-name">Lead Investigator</span>
+          <span class="relay-state mono" data-role="state">STANDBY</span>
+        </div>
+        <div class="relay-connector" aria-hidden="true"></div>
+        <div class="relay-station is-standby" id="relay-critic">
+          <span class="relay-marker" aria-hidden="true"></span>
+          <span class="relay-name">Evidence Critic</span>
+          <span class="relay-state mono" data-role="state">STANDBY</span>
+        </div>
+        <div class="relay-connector" aria-hidden="true"></div>
+        <div class="relay-station is-standby" id="relay-synthesist">
+          <span class="relay-marker" aria-hidden="true"></span>
+          <span class="relay-name">Report Synthesist</span>
+          <span class="relay-state mono" data-role="state">STANDBY</span>
+        </div>
+      </div>
+
       <!-- Current Agent State Banner (Active Reasoning Fragment) -->
       <div class="agent-focus-banner" id="agent-focus-banner">
-        <div class="focus-pulse-line"></div>
+        <div class="focus-pulse-line" id="focus-pulse-line"></div>
         <div class="focus-content">
           <div class="focus-meta">
+            <span class="focus-agent mono agent-investigator" id="focus-agent">INVESTIGATOR</span>
             <span class="focus-tag mono" id="focus-phase-tag">INITIALIZING</span>
             <span class="focus-time mono" id="focus-timestamp">—</span>
           </div>
@@ -213,6 +302,49 @@
         </div>
 
       </div>
+
+      <!-- Investigation Context & Memory Ledger Strip -->
+      <div class="context-ledger" id="context-ledger">
+        <div class="context-ledger-head">
+          <span class="context-ledger-title">INVESTIGATION CONTEXT</span>
+          <span class="context-ledger-status mono" id="ctx-status">Context is carried forward into every reasoning step</span>
+        </div>
+
+        <div class="context-metrics-row">
+          <div class="ctx-metric">
+            <span class="ctx-metric-val mono" id="ctx-prior">0</span>
+            <span class="ctx-metric-lbl">PRIOR INVESTIGATIONS LINKED</span>
+          </div>
+          <div class="ctx-metric">
+            <span class="ctx-metric-val mono" id="ctx-evidence">0</span>
+            <span class="ctx-metric-lbl">FINDINGS RETAINED</span>
+          </div>
+          <div class="ctx-metric">
+            <span class="ctx-metric-val mono" id="ctx-updates">0</span>
+            <span class="ctx-metric-lbl">CONTEXT UPDATES</span>
+          </div>
+          <div class="ctx-metric">
+            <span class="ctx-metric-val mono" id="ctx-gaps">0</span>
+            <span class="ctx-metric-lbl">OPEN KNOWLEDGE GAPS</span>
+          </div>
+          <div class="ctx-metric">
+            <span class="ctx-metric-val mono" id="ctx-memory">—</span>
+            <span class="ctx-metric-lbl">MEMORY WRITE</span>
+          </div>
+        </div>
+
+        <div class="context-gap-line" id="ctx-gap-line" hidden>
+          <span class="ctx-gap-tag mono">OPEN GAPS</span>
+          <span class="ctx-gap-text" id="ctx-gap-text">—</span>
+        </div>
+
+        <div class="context-prior-section" id="ctx-prior-section" hidden>
+          <div class="context-prior-head mono">RELEVANT HISTORICAL RECORDS</div>
+          <ul class="context-prior-list" id="ctx-prior-rows"></ul>
+          <p class="context-disclaimer mono">Historical context only — never cited as current evidence.</p>
+        </div>
+      </div>
+
     </section>
 
     <!-- ============================================ SCREEN 3 — SYNTHESIZED REPORT -->
@@ -223,6 +355,13 @@
         <div>
           <div class="report-eyebrow">PRIORITIZED INTELLIGENCE BRIEF</div>
           <h1 class="report-target" id="report-target-heading">—</h1>
+          <div class="report-byline mono">
+            <span id="report-run-id">—</span>
+            <span class="byline-sep">·</span>
+            <span id="report-generated">—</span>
+            <span class="byline-sep">·</span>
+            <span class="byline-note">Synthesized from verified evidence only</span>
+          </div>
         </div>
         <div class="report-actions-bar">
           <button type="button" class="btn-quiet" id="trace-toggle" aria-expanded="false">
@@ -260,9 +399,7 @@
       </div>
 
       <!-- Decision Trace Drawer (Embedded when toggled) -->
-      <div class="report-embedded-trace" id="report-embedded-trace" hidden>
-        <!-- Populated dynamically if requested -->
-      </div>
+      <div class="report-embedded-trace" id="report-embedded-trace" hidden></div>
 
       <!-- Editorial Report Document Canvas -->
       <article class="report-document">
@@ -270,7 +407,8 @@
         <!-- Section 1: Executive Intelligence -->
         <section class="report-section" id="sec-summary">
           <div class="section-badge-row">
-            <span class="section-tag">01 / EXECUTIVE SUMMARY</span>
+            <span class="section-idx mono">01</span>
+            <span class="section-tag">EXECUTIVE SUMMARY</span>
           </div>
           <div class="lead-prose" id="report-summary"></div>
         </section>
@@ -278,7 +416,8 @@
         <!-- Section 2: Prioritized Key Signals -->
         <section class="report-section" id="sec-signals">
           <div class="section-badge-row">
-            <span class="section-tag">02 / PRIORITIZED SIGNALS</span>
+            <span class="section-idx mono">02</span>
+            <span class="section-tag">PRIORITIZED SIGNALS</span>
           </div>
           <div class="signals-stack" id="report-signals"></div>
         </section>
@@ -289,7 +428,8 @@
         <!-- Section 4: Recommended Next Actions -->
         <section class="report-section" id="sec-actions" hidden>
           <div class="section-badge-row">
-            <span class="section-tag">04 / STRATEGIC NEXT ACTIONS</span>
+            <span class="section-idx mono">08</span>
+            <span class="section-tag">STRATEGIC NEXT ACTIONS</span>
           </div>
           <ol class="actions-grid" id="report-actions"></ol>
         </section>
@@ -343,6 +483,17 @@
     </section>
 
   </main>
+
+  <!-- Citation Hover / Focus Inspector Shell -->
+  <div class="citation-peek" id="citation-peek" hidden role="tooltip">
+    <div class="peek-head">
+      <span class="peek-id mono" id="peek-id">E1</span>
+      <span class="peek-tool mono" id="peek-tool">news_search</span>
+    </div>
+    <div class="peek-title" id="peek-title">—</div>
+    <div class="peek-meta mono" id="peek-meta">—</div>
+    <div class="peek-snippet" id="peek-snippet"></div>
+  </div>
 
   <script src="/app.js"></script>
 </body>

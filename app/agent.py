@@ -1,9 +1,12 @@
+import logging
 import sys
 import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable
 from google.genai import types
+
+logger = logging.getLogger(__name__)
 
 from app.agents import (
     CRITIC_INSTRUCTION,
