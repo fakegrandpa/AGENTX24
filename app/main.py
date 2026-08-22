@@ -10,8 +10,9 @@ from pydantic import BaseModel, Field
 
 from app.agent import run_investigation
 from app.agents import AGENT_ROSTER
-from app.config import ENABLE_CRITIC, GEMINI_API_KEY, GEMINI_MODEL, get_enabled_providers
+from app.config import ENABLE_CRITIC, ENABLE_MEMORY, GEMINI_API_KEY, GEMINI_MODEL, get_enabled_providers
 from app.llm import resolve_model
+from app.memory import load_all_memories
 from app.models import Run, TelemetryEvent
 from app.store import (
     broadcast_event,
@@ -80,6 +81,8 @@ def api_health() -> dict:
         "providers": get_enabled_providers(),
         "agents": [AGENT_ROSTER[k] for k in ("investigator", "critic", "synthesist")],
         "critic_enabled": ENABLE_CRITIC,
+        "memory_enabled": ENABLE_MEMORY,
+        "memory_records_count": len(load_all_memories()),
     }
 
 

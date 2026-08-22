@@ -81,6 +81,47 @@ Interactive Live Dashboard with Real-Time Multi-Agent Telemetry
 
 ---
 
+## Context & Memory Management (Stage 4)
+
+AGENTX24 implements a dual-tier context and memory system for cross-step continuity and longitudinal investigation memory:
+
+### 1. Short-Term Investigation Context (`InvestigationContext`)
+- Maintains a structured, bounded context per investigation run: objective, active agent, turn-by-turn tool query history, compact evidence summaries (`[E1]`, `[E2]`), knowledge gaps, and critique logs.
+- Prevents redundant tool calls and supplies the **Lead Investigator** with previous findings and exact search queries already attempted.
+- Preserves **Evidence Critic** feedback: identified missing angles and recommended search queries are stored in context and injected directly into follow-up reasoning iterations.
+- Provides the **Report Synthesist** with clean, curated context without unbounded text dumps.
+
+### 2. Lightweight Persistent Long-Term Memory (`MemoryRecord`)
+- Completed investigations are automatically summarized into compact `MemoryRecord` entries (objective, key findings, signal count, extracted keywords, tools used, evidence IDs).
+- Persisted locally with fail-open resilience (`data/investigation_memory.json`).
+- On new investigations, **relevance-based retrieval** performs token and entity overlap scoring to identify pertinent past investigations (capped at top-3 with strict minimum similarity threshold so irrelevant queries are ignored).
+- Injects a concise historical summary into the Investigator's initial context.
+- **Evidence Integrity Rule**: Prior memory is strictly treated as historical context and inquiry guidance—never as pre-verified evidence. All current report claims must be corroborated by newly gathered tool results.
+
+### Memory & Context Flow
+
+```
+Current Investigation
+      ↓
+[Structured Short-Term Context]
+      ↓
+[Critic Feedback & Knowledge Gaps]
+      ↓
+[Targeted Follow-Up Investigation]
+      ↓
+[Final Intelligence Synthesis]
+      ↓
+[Persistent Investigation Memory Store]
+
+Subsequent Investigation
+      ↓
+[Relevance-Based Memory Retrieval] (Keyword & Entity Overlap)
+      ↓
+[Investigator Context Injection]
+```
+
+---
+
 ## Key Features
 
 - **Specialized Multi-Agent Collaboration**: Three dedicated LLM roles with separated powers collaborating bidirectionally through a critic-gated loop.

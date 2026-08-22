@@ -21,6 +21,9 @@ class PhaseEnum(str, Enum):
     CRITIC_REVIEWING = "Reviewing evidence sufficiency"
     CRITIQUE_RETURNED = "Critique returned"
     SYNTHESIST_COMPOSING = "Composing intelligence report"
+    PRIOR_CONTEXT_FOUND = "Relevant prior context retrieved"
+    CONTEXT_UPDATED = "Investigation context updated"
+    MEMORY_SAVED = "Investigation saved to memory"
     EVIDENCE_FOUND = "Evidence found"
     NO_RESULTS = "No results for that angle"
     SOURCE_UNAVAILABLE = "Source unavailable"
@@ -92,6 +95,34 @@ class Report(BaseModel):
     limitations: list[str] = Field(default_factory=list)
 
 
+class MemoryRecord(BaseModel):
+    memory_id: str
+    created_at: str
+    objective: str
+    summary: str
+    key_findings: list[str] = Field(default_factory=list)
+    entities_or_keywords: list[str] = Field(default_factory=list)
+    tools_used: list[str] = Field(default_factory=list)
+    evidence_refs: list[str] = Field(default_factory=list)
+    signal_count: int = 0
+
+
+class InvestigationContext(BaseModel):
+    run_id: str
+    objective: str
+    normalized_objective: str = ""
+    phase: str = ""
+    active_agent: AgentRole = AgentRole.INVESTIGATOR
+    tool_history: list[dict[str, Any]] = Field(default_factory=list)
+    evidence_summary: list[str] = Field(default_factory=list)
+    key_findings: list[str] = Field(default_factory=list)
+    knowledge_gaps: list[str] = Field(default_factory=list)
+    critic_feedback: list[dict[str, Any]] = Field(default_factory=list)
+    critique_count: int = 0
+    prior_memories: list[MemoryRecord] = Field(default_factory=list)
+    updated_at: str = ""
+
+
 class Run(BaseModel):
     id: str
     query: str
@@ -102,5 +133,7 @@ class Run(BaseModel):
     evidence: list[Evidence] = Field(default_factory=list)
     tool_calls: list[dict[str, Any]] = Field(default_factory=list)
     critiques: list[Critique] = Field(default_factory=list)
+    context: InvestigationContext | None = None
+    prior_memories: list[MemoryRecord] = Field(default_factory=list)
     report: Report | None = None
     limitations: list[str] = Field(default_factory=list)

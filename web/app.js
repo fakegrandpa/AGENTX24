@@ -314,6 +314,15 @@ function processTelemetryEvent(ev) {
   } else if (ev.kind === "tool_result") {
     phaseTag = "ANALYZING EVIDENCE";
     title = `Processed findings from ${d.tool || "tool"}`;
+  } else if (ev.phase === "Relevant prior context retrieved") {
+    phaseTag = "MEMORY RETRIEVAL";
+    title = `Referenced ${d.count || 1} relevant historical investigation(s)`;
+  } else if (ev.phase === "Investigation context updated") {
+    phaseTag = "CONTEXT UPDATED";
+    title = "Updated short-term context with Critic feedback";
+  } else if (ev.phase === "Investigation saved to memory") {
+    phaseTag = "MEMORY PERSISTED";
+    title = "Saved completed investigation to memory store";
   } else if (ev.phase === "Reviewing evidence sufficiency") {
     phaseTag = "CRITIC REVIEW";
     title = "Evidence Critic reviewing knowledge sufficiency";
@@ -665,11 +674,16 @@ function renderReport(run) {
   const elapsed = Math.max(1, Math.round((Date.now() - state.startedAt) / 1000));
   const toolsUsed = [...new Set((run.tool_calls || []).map((t) => t.name))];
   const evidenceCount = (run.evidence || []).length;
+  const priorMemCount = (run.prior_memories || []).length;
 
   $("trace-summary-steps").textContent = `${state.events.length} steps`;
   $("trace-summary-evidence").textContent = `${evidenceCount} verified fragments`;
   $("trace-summary-tools").textContent = `${toolsUsed.length} external tools`;
   $("trace-summary-time").textContent = `${elapsed}s wall-clock`;
+  const memEl = $("trace-summary-memory");
+  if (memEl) {
+    memEl.textContent = priorMemCount > 0 ? `${priorMemCount} prior linked` : "None";
+  }
 
   const validIds = new Set((run.evidence || []).map((e) => e.id));
 

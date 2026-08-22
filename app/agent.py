@@ -12,14 +12,31 @@ from app.agents import (
 )
 from app.config import (
     ENABLE_CRITIC,
+    ENABLE_MEMORY,
     GEMINI_API_KEY,
     MAX_CRITIQUES,
     MAX_ITERATIONS,
     MAX_TOOL_CALLS,
+    MEMORY_RETRIEVAL_LIMIT,
     WALL_CLOCK,
 )
 from app.llm import LLMResponse, propose_next_step, resolve_model
-from app.models import AgentRole, Critique, Evidence, PhaseEnum, Run, TelemetryEvent
+from app.memory import (
+    create_memory_from_run,
+    find_relevant_memories,
+    format_prior_context_prompt,
+    save_memory,
+)
+from app.models import (
+    AgentRole,
+    Critique,
+    Evidence,
+    InvestigationContext,
+    MemoryRecord,
+    PhaseEnum,
+    Run,
+    TelemetryEvent,
+)
 from app.report import assemble_report
 from app.tools import execute_tool, extract_reason, get_advertised_tools
 from app.tools.patents import is_patent_tool_available
@@ -61,12 +78,29 @@ def run_investigation(
     objective: str,
     emit_callback: Callable[[TelemetryEvent], None] | None = None,
 ) -> Run:
-    """Executes the autonomous multi-agent investigation loop for a given objective.
-    This function is trigger-agnostic (can be called from HTTP route, CLI, or scheduler).
+    """Executes the autonomous multi-agent investigation loop with short-term context
+    and long-term memory management.
     """
     run_id = f"run_{uuid.uuid4().hex[:10]}"
     started_at = _iso_now()
     seq_counter = 0
+
+    # 1. Initialize Short-Term Investigation Context
+    context = InvestigationContext(
+        run_id=run_id,
+        objective=objective.strip(),
+        normalized_objective=objective.strip(),
+        phase=PhaseEnum.UNDERSTANDING_OBJECTIVE.value,
+        active_agent=AgentRole.INVESTIGATOR,
+        tool_history=[],
+        evidence_summary=[],
+        key_findings=[],
+        knowledge_gaps=[],
+        critic_feedback=[],
+        critique_count=0,
+        prior_memories=[],
+        updated_at=started_at,
+    )
 
     run = Run(
         id=run_id,
@@ -77,6 +111,8 @@ def run_investigation(
         evidence=[],
         tool_calls=[],
         critiques=[],
+        context=context,
+        prior_memories=[],
         report=None,
         limitations=[],
     )
@@ -123,6 +159,35 @@ def run_investigation(
         run.finished_at = _iso_now()
         return run
 
+    # 2. Long-Term Memory Retrieval: Query relevant prior investigations
+    prior_context_injection = ""
+    if ENABLE_MEMORY:
+        try:
+            relevant_memories = find_relevant_memories(
+                objective=objective.strip(),
+                limit=MEMORY_RETRIEVAL_LIMIT,
+            )
+            if relevant_memories:
+                context.prior_memories = relevant_memories
+                run.prior_memories = relevant_memories
+                prior_context_injection = format_prior_context_prompt(relevant_memories)
+                emit(
+                    phase=PhaseEnum.PRIOR_CONTEXT_FOUND,
+                    kind="planning",
+                    text="Relevant prior context retrieved",
+                    detail=f"Referenced {len(relevant_memories)} historical investigation(s) from persistent memory",
+                    agent=AgentRole.INVESTIGATOR,
+                    data={
+                        "count": len(relevant_memories),
+                        "memories": [
+                            {"id": m.memory_id, "objective": m.objective, "created_at": m.created_at}
+                            for m in relevant_memories
+                        ],
+                    },
+                )
+        except Exception as mem_err:
+            run.limitations.append(f"Memory retrieval notice: {mem_err}")
+
     emit(
         phase=PhaseEnum.UNDERSTANDING_OBJECTIVE,
         kind="objective",
@@ -132,24 +197,27 @@ def run_investigation(
         data={
             "objective": objective,
             "available_tools": [t["name"] for t in get_advertised_tools()],
+            "prior_memories_count": len(context.prior_memories),
         },
     )
 
-    # Prepare conversation history for Gemini
+    # 3. Prepare conversation history with Short-Term Context and optional Prior Memory
+    initial_user_prompt = (
+        f"Please investigate the following target: '{objective}'. "
+        "Autonomously select appropriate tools step by step to gather news, academic research, and web evidence. "
+        "Analyze the findings and provide a prioritized intelligence report citing evidence IDs [E1], [E2], etc. "
+        "Structure your final report with: INVESTIGATION SUMMARY, HIGH PRIORITY SIGNALS, "
+        "KEY RESEARCH DEVELOPMENTS, COMPETITOR / INDUSTRY ACTIVITY, RECENT DEVELOPMENTS, "
+        "EMERGING / WATCH SIGNALS, WHY THIS MATTERS, and RECOMMENDED NEXT ACTIONS."
+    )
+    if prior_context_injection:
+        initial_user_prompt = f"{prior_context_injection}\n\n{initial_user_prompt}"
+
     advertised_tools = get_advertised_tools()
     history: list[Any] = [
         types.Content(
             role="user",
-            parts=[
-                types.Part.from_text(
-                    text=f"Please investigate the following target: '{objective}'. "
-                    "Autonomously select appropriate tools step by step to gather news, academic research, and web evidence. "
-                    "Analyze the findings and provide a prioritized intelligence report citing evidence IDs [E1], [E2], etc. "
-                    "Structure your final report with: INVESTIGATION SUMMARY, HIGH PRIORITY SIGNALS, "
-                    "KEY RESEARCH DEVELOPMENTS, COMPETITOR / INDUSTRY ACTIVITY, RECENT DEVELOPMENTS, "
-                    "EMERGING / WATCH SIGNALS, WHY THIS MATTERS, and RECOMMENDED NEXT ACTIONS."
-                )
-            ],
+            parts=[types.Part.from_text(text=initial_user_prompt)],
         )
     ]
 
@@ -159,6 +227,7 @@ def run_investigation(
     total_tool_calls = 0
     final_synthesis_text = ""
 
+    # 4. Multi-Agent Reasoning Loop
     while iterations < MAX_ITERATIONS and total_tool_calls < MAX_TOOL_CALLS:
         elapsed = time.time() - start_time
         if elapsed >= WALL_CLOCK:
@@ -166,13 +235,17 @@ def run_investigation(
             break
 
         iterations += 1
+        context.phase = f"Step {iterations} Planning"
+        context.active_agent = AgentRole.INVESTIGATOR
+        context.updated_at = _iso_now()
+
         emit(
             phase=PhaseEnum.PLANNING_NEXT_STEP,
             kind="planning",
             text=f"Analyzing gathered findings (Step {iterations})",
             detail=None,
             agent=AgentRole.INVESTIGATOR,
-            data={"step": iterations},
+            data={"step": iterations, "evidence_count": len(run.evidence)},
         )
 
         try:
@@ -199,6 +272,10 @@ def run_investigation(
             # Investigator proposed completion. Gate with Evidence Critic if enabled and evidence exists
             if ENABLE_CRITIC and run.evidence and len(run.critiques) < MAX_CRITIQUES:
                 seq_critique = len(run.critiques) + 1
+                context.active_agent = AgentRole.CRITIC
+                context.phase = PhaseEnum.CRITIC_REVIEWING.value
+                context.updated_at = _iso_now()
+
                 emit(
                     phase=PhaseEnum.CRITIC_REVIEWING,
                     kind="planning",
@@ -230,6 +307,32 @@ def run_investigation(
                 )
 
                 if not critique.sufficient:
+                    # Update Investigation Context with Critic gaps and feedback
+                    context.knowledge_gaps = list(critique.gaps)
+                    context.critic_feedback.append({
+                        "seq": seq_critique,
+                        "verdict": "insufficient",
+                        "gaps": list(critique.gaps),
+                        "recommended_tool": critique.recommended_tool,
+                        "recommended_query": critique.recommended_query,
+                    })
+                    context.critique_count += 1
+                    context.updated_at = _iso_now()
+
+                    emit(
+                        phase=PhaseEnum.CONTEXT_UPDATED,
+                        kind="planning",
+                        text="Investigation context updated",
+                        detail=f"Context updated with {len(critique.gaps)} gap(s) identified by Critic",
+                        agent=AgentRole.CRITIC,
+                        data={
+                            "knowledge_gaps": critique.gaps,
+                            "recommended_tool": critique.recommended_tool,
+                            "recommended_query": critique.recommended_query,
+                            "critique_count": context.critique_count,
+                        },
+                    )
+
                     gap_summary = "; ".join(critique.gaps) if critique.gaps else "Key angles missing."
                     emit(
                         phase=PhaseEnum.IDENTIFYING_GAPS,
@@ -256,6 +359,9 @@ def run_investigation(
 
                     history.append(types.Content(role="user", parts=[types.Part.from_text(text=critique_instruction)]))
                     continue
+                else:
+                    context.critic_feedback.append({"seq": seq_critique, "verdict": "sufficient", "gaps": []})
+                    context.critique_count += 1
 
             final_synthesis_text = response.text
             break
@@ -271,10 +377,9 @@ def run_investigation(
             tool_phase = _tool_to_phase(call.name)
             arg_preview = call.args.get("query", "")
             call_detail = f"{call.name}(\"{arg_preview}\")" if arg_preview else f"{call.name}()"
-            # The agent's own justification for this call, supplied as a declared tool argument.
             reason = extract_reason(call.args)
 
-            # A follow-up tool call made while evidence already exists IS the agent acting on a knowledge gap.
+            # Follow-up tool call based on context gap
             if run.evidence and iterations > 1:
                 emit(
                     phase=PhaseEnum.IDENTIFYING_GAPS,
@@ -337,6 +442,8 @@ def run_investigation(
                     )
                     run.evidence.append(evidence_obj)
                     new_evidence_count += 1
+                    # Update short-term evidence summary
+                    context.evidence_summary.append(f"[{ev_id}] [{call.name}] {evidence_obj.title} ({evidence_obj.source})")
 
                 emit(
                     phase=PhaseEnum.EVIDENCE_FOUND,
@@ -377,6 +484,17 @@ def run_investigation(
                     data={"tool": call.name, "ok": True, "new_evidence": 0},
                 )
 
+            # Update context tool history
+            context.tool_history.append({
+                "step": iterations,
+                "tool": call.name,
+                "query": arg_preview,
+                "reason": reason,
+                "ok": is_ok,
+                "results_count": new_evidence_count,
+            })
+            context.updated_at = _iso_now()
+
             # Feed result into conversation
             tool_response_payload = {
                 "status": "success" if is_ok else "error",
@@ -404,7 +522,11 @@ def run_investigation(
         if function_response_parts:
             history.append(types.Content(role="user", parts=function_response_parts))
 
-    # Route the final report through the Report Synthesist on both accepted completion and budget exhaustion
+    # 5. Route the final report through the Report Synthesist
+    context.active_agent = AgentRole.SYNTHESIST
+    context.phase = PhaseEnum.SYNTHESIST_COMPOSING.value
+    context.updated_at = _iso_now()
+
     emit(
         phase=PhaseEnum.SYNTHESIST_COMPOSING,
         kind="final",
@@ -446,7 +568,7 @@ def run_investigation(
             "only the verified evidence below is trustworthy."
         )
 
-    # Assemble structured report
+    # 6. Assemble structured report
     report = assemble_report(
         target=objective,
         raw_synthesis_text=final_synthesis_text,
@@ -456,15 +578,36 @@ def run_investigation(
         has_patents=is_patent_tool_available(),
     )
     run.report = report
-    # A run that produced neither evidence nor model synthesis is a failure, not a success
     run.status = "done" if (run.evidence or synthesis_from_model) else "error"
     run.finished_at = _iso_now()
+
+    # 7. Long-Term Memory Persistence: Save completed investigation to memory
+    if ENABLE_MEMORY and run.status == "done":
+        try:
+            mem_record = create_memory_from_run(run)
+            if mem_record:
+                saved = save_memory(mem_record)
+                if saved:
+                    emit(
+                        phase=PhaseEnum.MEMORY_SAVED,
+                        kind="note",
+                        text="Investigation saved to memory",
+                        detail=f"Persisted memory record {mem_record.memory_id} ({mem_record.signal_count} signals)",
+                        agent=AgentRole.SYNTHESIST,
+                        data={
+                            "memory_id": mem_record.memory_id,
+                            "objective": mem_record.objective,
+                            "signal_count": mem_record.signal_count,
+                        },
+                    )
+        except Exception as save_err:
+            logger.warning("Memory save warning: %s", save_err)
 
     emit(
         phase=PhaseEnum.COMPLETED,
         kind="final",
         text="Intelligence report ready",
-        detail=f"{len(run.tool_calls)} tool calls · {len(run.evidence)} sources · {len(report.signals)} prioritized signals · {len(run.critiques)} critiques",
+        detail=f"{len(run.tool_calls)} tool calls · {len(run.evidence)} sources · {len(report.signals)} signals · {len(context.prior_memories)} prior memories",
         agent=AgentRole.SYNTHESIST,
         data={
             "tool_calls": len(run.tool_calls),
@@ -472,6 +615,7 @@ def run_investigation(
             "tools_used": sorted({tc["name"] for tc in run.tool_calls}),
             "signals": len(report.signals),
             "critiques": len(run.critiques),
+            "prior_memories": len(context.prior_memories),
         },
     )
 
@@ -485,16 +629,17 @@ if __name__ == "__main__":
     def cli_telemetry_printer(ev: TelemetryEvent) -> None:
         det = f" -> {ev.detail}" if ev.detail else ""
         agent_label = f"[{ev.agent.value.upper()}]" if hasattr(ev, "agent") and ev.agent else "[INVESTIGATOR]"
-        print(f"[{ev.seq:02d} | {agent_label} | {ev.phase.value}] {ev.text}{det}")
+        print(f"[{ev.seq:02d} | {agent_label:14} | {ev.phase.value}] {ev.text}{det}")
 
     result_run = run_investigation(test_target, emit_callback=cli_telemetry_printer)
 
     print("\n=======================================================")
-    print(f"Run ID     : {result_run.id}")
-    print(f"Status     : {result_run.status}")
-    print(f"Tool Calls : {len(result_run.tool_calls)}")
-    print(f"Evidence   : {len(result_run.evidence)} items")
-    print(f"Critiques  : {len(result_run.critiques)}")
+    print(f"Run ID         : {result_run.id}")
+    print(f"Status         : {result_run.status}")
+    print(f"Prior Memories : {len(result_run.prior_memories)}")
+    print(f"Tool Calls     : {len(result_run.tool_calls)}")
+    print(f"Evidence       : {len(result_run.evidence)} items")
+    print(f"Critiques      : {len(result_run.critiques)}")
     for c in result_run.critiques:
         verdict = "Sufficient" if c.sufficient else "Insufficient"
         gaps = f" | Gaps: {c.gaps}" if c.gaps else ""
