@@ -1,23 +1,23 @@
 /* ==========================================================================
-   AGENTX24 — Autonomous Intelligence Office Styles (web/office.css)
-   Token reuse only: strictly derives all surfaces, hairlines, and accents
-   from existing :root tokens in app.css. No raw colour literals.
+   AGENTX24 — The Intelligence Studio (web/office.css)
+   High-end editorial & spatial workspace visualization.
+   Strictly derives all tokens from existing :root variables in app.css.
    ========================================================================== */
 
-/* ----------------------------------------------------------- Office Container */
+/* ----------------------------------------------------------- Studio Section & Shell */
 
 .office-section {
   margin-bottom: var(--s-5);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow-1);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-2);
   overflow: hidden;
   position: relative;
   transition: all var(--enter);
 }
 
-.office-header {
+.studio-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -26,13 +26,13 @@
   background: var(--surface-sunk);
 }
 
-.office-title-group {
+.studio-header-left {
   display: flex;
   align-items: center;
-  gap: var(--s-2);
+  gap: var(--s-3);
 }
 
-.office-title {
+.studio-title {
   font-size: var(--t-label);
   font-weight: 600;
   letter-spacing: .06em;
@@ -40,90 +40,108 @@
   color: var(--text-secondary);
 }
 
-.office-badge {
+.studio-badge {
   font-family: var(--mono);
   font-size: 11px;
   color: var(--accent);
   background: var(--accent-weak);
   border-radius: var(--r-pill);
-  padding: 1px 7px;
+  padding: 2px 8px;
+  font-weight: 600;
 }
 
-.office-legend {
+.studio-legend {
   font-size: 11.5px;
   color: var(--text-tertiary);
   display: flex;
   align-items: center;
-  gap: var(--s-3);
+  gap: var(--s-4);
 }
 
-.legend-field-dot {
-  display: inline-block;
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot-specialist {
   width: 7px;
   height: 7px;
   border-radius: var(--r-pill);
   background: var(--accent);
 }
 
-.legend-stage-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
+.legend-dot-stage {
+  width: 8px;
+  height: 8px;
   border-radius: 2px;
   border: 1px dashed var(--text-tertiary);
 }
 
-/* ----------------------------------------------------------- SVG Scene */
+/* ----------------------------------------------------------- SVG Scene Canvas */
 
-.office-scene-wrapper {
+.studio-scene-wrapper {
   position: relative;
   width: 100%;
   padding: var(--s-2) var(--s-4);
   background: var(--canvas);
+  min-height: 480px;
 }
 
-.office-svg {
+.studio-svg {
   display: block;
   width: 100%;
   height: auto;
-  max-height: 640px;
+  max-height: 620px;
   overflow: visible;
 }
 
-/* Floor & Corridors */
-.corridor-line {
+/* Subtle Spatial Atmosphere */
+.studio-grid-line {
   stroke: var(--line);
-  stroke-width: 8;
-  stroke-linecap: round;
+  stroke-width: 1;
+  stroke-dasharray: 4 6;
+  opacity: 0.7;
 }
 
-.corridor-guide {
-  stroke: var(--line-strong);
+.studio-flow-path {
+  fill: none;
+  stroke: var(--line);
   stroke-width: 1.5;
   stroke-dasharray: 4 4;
 }
 
-/* Manager Cabin */
-.manager-cabin-shell {
+.studio-flow-path.active {
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  animation: flowMotion 1.2s linear infinite;
+}
+
+/* ----------------------------------------------------------- Central Command Table (Manager) */
+
+.command-table-card {
   fill: var(--surface);
   stroke: var(--line-strong);
   stroke-width: 1.5;
-  filter: drop-shadow(0 2px 4px rgba(20, 23, 31, 0.04));
+  rx: var(--r-md);
+  filter: drop-shadow(0 4px 12px rgba(20, 23, 31, 0.05));
   transition: stroke var(--fast);
 }
 
-.manager-cabin[data-state="error"] .manager-cabin-shell {
-  stroke: var(--danger);
+.command-table-group:hover .command-table-card,
+.command-table-group:focus-visible .command-table-card {
+  stroke: var(--accent);
 }
 
-.assignment-plate {
+.objective-docket {
   fill: var(--surface-sunk);
   stroke: var(--line);
   stroke-width: 1;
   rx: var(--r-sm);
 }
 
-.assignment-label {
+.docket-label {
   font-family: var(--font);
   font-size: 10px;
   font-weight: 700;
@@ -132,21 +150,21 @@
   fill: var(--text-tertiary);
 }
 
-.assignment-text {
+.docket-objective-text {
   font-family: var(--font);
   font-size: 13.5px;
   font-weight: 600;
   fill: var(--text);
 }
 
-.manager-phase-chip {
+.manager-state-chip-bg {
   fill: var(--accent-weak);
   stroke: var(--accent);
   stroke-width: 1;
   rx: var(--r-pill);
 }
 
-.manager-phase-text {
+.manager-state-chip-text {
   font-family: var(--mono);
   font-size: 11px;
   font-weight: 600;
@@ -154,14 +172,14 @@
   text-anchor: middle;
 }
 
-.evidence-tray-bg {
+.manager-evidence-tray-bg {
   fill: var(--surface-sunk);
   stroke: var(--line);
   stroke-width: 1;
   rx: var(--r-sm);
 }
 
-.tray-count-text {
+.tray-count-label {
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 600;
@@ -169,210 +187,219 @@
   text-anchor: middle;
 }
 
-/* Desks */
-.desk-base {
+/* ----------------------------------------------------------- Specialist Workstations */
+
+.specialist-card {
   fill: var(--surface);
   stroke: var(--line);
   stroke-width: 1.5;
-  rx: var(--r-sm);
+  rx: var(--r-md);
+  filter: drop-shadow(0 2px 8px rgba(20, 23, 31, 0.03));
   transition: stroke var(--fast), fill var(--fast);
 }
 
-.desk-group:hover .desk-base,
-.desk-group:focus-visible .desk-base {
+.specialist-group {
+  cursor: pointer;
+  outline: none;
+}
+
+.specialist-group:hover .specialist-card,
+.specialist-group:focus-visible .specialist-card {
   stroke: var(--accent);
 }
 
-.desk-group.is-unstaffed .desk-base {
-  fill: var(--surface-sunk);
-  stroke: var(--line);
-  opacity: 0.55;
-}
-
-.desk-label {
+.specialist-title {
   font-family: var(--font);
-  font-size: 11.5px;
+  font-size: 12px;
   font-weight: 600;
   fill: var(--text);
-  text-anchor: middle;
 }
 
-.desk-tool-name {
+.specialist-meta {
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: 10px;
+  fill: var(--text-tertiary);
+}
+
+.specialist-sheet-item {
+  fill: var(--surface-sunk);
+  stroke: var(--line);
+  stroke-width: 1;
+  rx: 3px;
+  transition: transform var(--fast), stroke var(--fast);
+}
+
+/* Specialist States */
+[data-state="assigned"] .specialist-card,
+[data-state="working"] .specialist-card {
+  stroke: var(--accent);
+}
+
+[data-state="working"] .specialist-sheet-item {
+  stroke: var(--accent);
+  fill: var(--accent-weak);
+  animation: documentShift 2s ease-in-out infinite alternate;
+}
+
+[data-state="inbound"] .specialist-card {
+  stroke: var(--ok);
+}
+
+[data-state="empty"] .specialist-card {
+  stroke: var(--warn);
+}
+
+[data-state="error"] .specialist-card {
+  stroke: var(--danger);
+}
+
+.specialist-status-tag-bg {
+  fill: var(--surface-sunk);
+  stroke: var(--line);
+  stroke-width: 1;
+  rx: var(--r-pill);
+}
+
+.specialist-status-tag-text {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 600;
   fill: var(--text-tertiary);
   text-anchor: middle;
 }
 
-.monitor-screen {
+[data-state="working"] .specialist-status-tag-bg {
+  fill: var(--accent-weak);
+  stroke: var(--accent);
+}
+
+[data-state="working"] .specialist-status-tag-text {
+  fill: var(--accent);
+}
+
+[data-state="inbound"] .specialist-status-tag-text {
+  fill: var(--ok);
+}
+
+/* Dispatch Visit Counter Badge */
+.counter-pill-bg {
   fill: var(--surface-sunk);
   stroke: var(--line-strong);
   stroke-width: 1;
-  rx: 2px;
-  transition: fill var(--fast);
+  rx: var(--r-pill);
 }
 
-/* Category B Stages (dashed, stage micro-badge) */
-.stage-desk .desk-base {
+.counter-pill-text {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  fill: var(--text-secondary);
+  text-anchor: middle;
+}
+
+/* ----------------------------------------------------------- Analysis & Synthesis Bench (Category B) */
+
+.bench-card {
+  fill: var(--surface);
+  stroke: var(--line);
+  stroke-width: 1.5;
   stroke-dasharray: 4 4;
+  rx: var(--r-md);
 }
 
-.stage-badge-bg {
+.stage-card-box {
+  fill: var(--surface-sunk);
+  stroke: var(--line);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  rx: var(--r-sm);
+  transition: stroke var(--fast), fill var(--fast);
+}
+
+.stage-group:hover .stage-card-box,
+.stage-group:focus-visible .stage-card-box {
+  stroke: var(--accent);
+}
+
+.stage-card-box.active {
+  stroke: var(--accent);
+  fill: var(--surface);
+  stroke-dasharray: none;
+}
+
+.stage-name {
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--text-secondary);
+  text-anchor: middle;
+}
+
+.stage-pill-bg {
   fill: var(--surface-sunk);
   stroke: var(--line-strong);
   stroke-width: 1;
   rx: 3px;
 }
 
-.stage-badge-text {
+.stage-pill-text {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 8.5px;
   font-weight: 700;
   fill: var(--text-tertiary);
   text-anchor: middle;
 }
 
-/* Figures (Capsule body + Circle head) */
-.figure-body {
-  fill: var(--text-secondary);
-  transition: fill var(--fast), transform var(--fast);
-}
+/* ----------------------------------------------------------- Information Packets & Moving Cards */
 
-.figure-head {
+.packet-card {
   fill: var(--surface);
-  stroke: var(--text-secondary);
-  stroke-width: 2;
-  transition: stroke var(--fast), fill var(--fast);
-}
-
-.figure-accent-ring {
-  fill: none;
   stroke: var(--accent);
-  stroke-width: 2;
-  opacity: 0;
-  transition: opacity var(--fast);
+  stroke-width: 1.5;
+  rx: var(--r-sm);
+  filter: drop-shadow(0 3px 8px rgba(31, 90, 224, 0.18));
 }
 
-/* Field Zones */
-.field-zone-marker {
-  fill: var(--surface-sunk);
-  stroke: var(--line);
-  stroke-width: 1;
-  stroke-dasharray: 3 3;
-  rx: var(--r-pill);
-}
-
-.field-zone-label {
-  font-family: var(--mono);
-  font-size: 9.5px;
-  fill: var(--text-tertiary);
-  text-anchor: middle;
-}
-
-/* ----------------------------------------------------------- Worker States */
-
-/* Active / Assigned */
-[data-state="assigned"] .figure-accent-ring,
-[data-state="working"] .figure-accent-ring {
-  opacity: 1;
-}
-
-[data-state="assigned"] .monitor-screen,
-[data-state="working"] .monitor-screen {
-  fill: var(--accent-weak);
-  stroke: var(--accent);
-}
-
-[data-state="working"] .field-zone-marker {
-  stroke: var(--accent);
-  fill: var(--accent-weak);
-  animation: fieldPulse 1.6s ease-in-out infinite;
-}
-
-/* Result / Inbound / Reporting */
-[data-state="inbound"] .figure-head,
-[data-state="reporting"] .figure-head {
-  stroke: var(--ok);
-}
-
-[data-state="inbound"] .monitor-screen,
-[data-state="reporting"] .monitor-screen {
-  fill: var(--surface-sunk);
-  stroke: var(--ok);
-}
-
-/* Empty / Error */
-[data-state="empty"] .monitor-screen {
-  fill: var(--warn-weak);
-  stroke: var(--warn);
-}
-
-[data-state="error"] .monitor-screen {
-  fill: var(--danger-weak);
-  stroke: var(--danger);
-}
-
-[data-state="error"] .desk-base {
-  stroke: var(--danger);
-}
-
-/* Evidence Packet Dot in Transit */
-.evidence-packet-glyph {
-  fill: var(--accent);
-  filter: drop-shadow(0 1px 2px rgba(31, 90, 224, 0.35));
-}
-
-.evidence-packet-badge {
-  fill: var(--accent-weak);
-  stroke: var(--accent);
-  stroke-width: 1;
-  rx: var(--r-pill);
-}
-
-.evidence-packet-text {
+.packet-title {
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 700;
   fill: var(--accent);
-  text-anchor: middle;
 }
 
-/* Desk Visit Counter Badge */
-.visit-badge-bg {
-  fill: var(--surface-sunk);
-  stroke: var(--line-strong);
+.packet-meta {
+  font-family: var(--font);
+  font-size: 9px;
+  fill: var(--text-secondary);
+}
+
+.packet-count-pill {
+  fill: var(--accent-weak);
+  stroke: var(--accent);
   stroke-width: 1;
   rx: var(--r-pill);
 }
 
-.visit-badge-text {
-  font-family: var(--mono);
-  font-size: 9.5px;
-  font-weight: 700;
-  fill: var(--text-secondary);
-  text-anchor: middle;
-}
+/* ----------------------------------------------------------- Slide-Out Inspection Drawer */
 
-/* ----------------------------------------------------------- Interactive Drawers */
-
-.office-drawer {
+.studio-drawer {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
-  width: 380px;
+  width: 390px;
   max-width: 90%;
   background: var(--surface);
   border-left: 1px solid var(--line);
   box-shadow: var(--shadow-2);
-  z-index: 20;
+  z-index: 30;
   display: flex;
   flex-direction: column;
   transform: translateX(100%);
   transition: transform var(--enter);
 }
 
-.office-drawer.is-open {
+.studio-drawer.is-open {
   transform: translateX(0);
 }
 
@@ -392,7 +419,7 @@
 }
 
 .drawer-close-btn {
-  font-size: 18px;
+  font-size: 20px;
   line-height: 1;
   color: var(--text-tertiary);
   padding: 4px 8px;
@@ -423,7 +450,7 @@
   letter-spacing: .06em;
   text-transform: uppercase;
   color: var(--text-tertiary);
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 }
 
 .drawer-meta-val {
@@ -447,16 +474,7 @@
   font-size: var(--t-label);
 }
 
-.drawer-list-item a {
-  color: var(--text);
-  font-weight: 500;
-}
-
-.drawer-list-item a:hover {
-  color: var(--accent);
-}
-
-/* ----------------------------------------------------------- Persistent Office Strip */
+/* ----------------------------------------------------------- Persistent Studio Strip */
 
 .office-strip {
   display: flex;
@@ -515,15 +533,14 @@
 
 /* ----------------------------------------------------------- Animations */
 
-@keyframes fieldPulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(31, 90, 224, .3);
-    stroke-opacity: 1;
-  }
-  50% {
-    box-shadow: 0 0 0 4px rgba(31, 90, 224, 0);
-    stroke-opacity: 0.5;
-  }
+@keyframes documentShift {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-2px); }
+}
+
+@keyframes flowMotion {
+  0% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: -20; }
 }
 
 /* ----------------------------------------------------------- Accessibility & Reduced Motion */
@@ -546,19 +563,15 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  .office-svg * {
-    transition: none !important;
-    animation: none !important;
-  }
 }
 
-/* ----------------------------------------------------------- Responsive Rules */
+/* ----------------------------------------------------------- Responsive Roster Degradation (<768px) */
 
 @media (max-width: 768px) {
-  .office-scene-wrapper {
-    display: none; /* Degrades cleanly to office roster below 768px */
+  .studio-scene-wrapper {
+    display: none;
   }
-  .office-roster-list {
+  .studio-roster-list {
     display: flex !important;
     flex-direction: column;
     gap: var(--s-2);
@@ -566,7 +579,7 @@
   }
 }
 
-.office-roster-list {
+.studio-roster-list {
   display: none;
   list-style: none;
 }
@@ -580,9 +593,4 @@
   border-radius: var(--r-sm);
   background: var(--surface);
   font-size: var(--t-label);
-}
-
-.roster-row .mono {
-  font-family: var(--mono);
-  font-size: var(--t-mono);
 }

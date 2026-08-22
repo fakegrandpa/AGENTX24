@@ -1,90 +1,94 @@
 /* ==========================================================================
-   AGENTX24 — Autonomous Intelligence Office (web/office.js)
-   Living workflow visualization driven exclusively by real SSE telemetry.
-   Layering: interpretEvent (pure) -> reducer (state) -> renderOffice (DOM/CSS)
+   AGENTX24 — The Intelligence Studio (web/office.js)
+   Living intelligence workspace driven strictly by real SSE telemetry.
+   Spatial composition: Central Analysis Table + Specialist Workstations + Synthesis Bench.
+   Layering: interpretEvent (pure) -> reducer (pure) -> renderStudio (DOM/CSS)
    ========================================================================== */
 
 (function () {
   "use strict";
 
-  // 1. Authoritative Office Geometry (BUILD3.md)
-  const OFFICE_LAYOUT = {
+  // 1. Spatial Geometry & Station Positions
+  const STUDIO_LAYOUT = {
     manager: {
-      cabin: { x: 340, y: 24, w: 520, h: 208 },
-      desk: { x: 520, y: 168, w: 160, h: 44 },
-      figure: { x: 600, y: 150 },
-      plate: { x: 360, y: 44, w: 480, h: 52 },
-      phaseChip: { x: 600, y: 116 },
-      tray: { x: 700, y: 150, w: 140, h: 62 },
+      center: { x: 550, y: 270 },
+      card: { x: 340, y: 190, w: 420, h: 160 },
+      objectivePlate: { x: 360, y: 205, w: 380, h: 48 },
+      stateChip: { x: 440, y: 265, w: 220, h: 24 },
+      evidenceTray: { x: 600, y: 300, w: 140, h: 38 },
     },
-    corridor: {
-      spineY: 290,
-      trunkX: 600,
-      trunkY1: 232,
-      trunkY2: 290,
-    },
-    workers: {
+    specialists: {
       research_search: {
         id: "research",
         name: "Research Intelligence",
         tool: "research_search",
-        category: "A",
-        desk: { x: 120, y: 372, w: 160, h: 56 },
-        center: { x: 200, y: 400 },
-        fieldZone: { x: 200, y: 490 },
+        provider: "OPENALEX · ARXIV",
+        center: { x: 250, y: 95 },
+        card: { x: 160, y: 40, w: 180, h: 110 },
+        packetPath: [
+          { x: 480, y: 210 },
+          { x: 380, y: 160 },
+          { x: 250, y: 130 },
+        ],
       },
       news_search: {
         id: "news",
         name: "News Intelligence",
         tool: "news_search",
-        category: "A",
-        desk: { x: 370, y: 372, w: 160, h: 56 },
-        center: { x: 450, y: 400 },
-        fieldZone: { x: 450, y: 490 },
+        provider: "GOOGLE NEWS RSS",
+        center: { x: 850, y: 95 },
+        card: { x: 760, y: 40, w: 180, h: 110 },
+        packetPath: [
+          { x: 620, y: 210 },
+          { x: 720, y: 160 },
+          { x: 850, y: 130 },
+        ],
       },
       web_search: {
         id: "web",
         name: "Web Intelligence",
         tool: "web_search",
-        category: "A",
-        desk: { x: 670, y: 372, w: 160, h: 56 },
-        center: { x: 750, y: 400 },
-        fieldZone: { x: 750, y: 490 },
+        provider: "DUCKDUCKGO · WIKI",
+        center: { x: 170, y: 350 },
+        card: { x: 80, y: 295, w: 180, h: 110 },
+        packetPath: [
+          { x: 360, y: 270 },
+          { x: 270, y: 310 },
+          { x: 170, y: 350 },
+        ],
       },
       patent_search: {
         id: "patent",
         name: "Patent Intelligence",
         tool: "patent_search",
-        category: "A",
-        desk: { x: 920, y: 372, w: 160, h: 56 },
-        center: { x: 1000, y: 400 },
-        fieldZone: { x: 1000, y: 490 },
+        provider: "GOOGLE PATENTS",
+        center: { x: 930, y: 350 },
+        card: { x: 840, y: 295, w: 180, h: 110 },
+        packetPath: [
+          { x: 740, y: 270 },
+          { x: 830, y: 310 },
+          { x: 930, y: 350 },
+        ],
       },
     },
     stages: {
       verification: {
         id: "stage_verification",
         name: "Evidence Verification",
-        category: "B",
         code: "report.py::extract_and_validate_citations",
-        desk: { x: 250, y: 572, w: 160, h: 56 },
-        center: { x: 330, y: 600 },
+        card: { x: 340, y: 500, w: 130, h: 65 },
       },
       prioritization: {
         id: "stage_prioritization",
         name: "Signal Prioritization",
-        category: "B",
         code: "report.py::parse_signals_from_text",
-        desk: { x: 520, y: 572, w: 160, h: 56 },
-        center: { x: 600, y: 600 },
+        card: { x: 485, y: 500, w: 130, h: 65 },
       },
       composition: {
         id: "stage_composition",
-        name: "Report Composition",
-        category: "B",
+        name: "Dossier Composition",
         code: "report.py::assemble_report",
-        desk: { x: 790, y: 572, w: 160, h: 56 },
-        center: { x: 870, y: 600 },
+        card: { x: 630, y: 500, w: 130, h: 65 },
       },
     },
   };
@@ -102,7 +106,7 @@
         phase: "Standing by",
         dispatches: [],
       },
-      workers: {
+      specialists: {
         research_search: { state: "idle", visits: 0, currentQuery: "", currentReason: "", newEvidence: 0, staffed: true, error: null },
         news_search: { state: "idle", visits: 0, currentQuery: "", currentReason: "", newEvidence: 0, staffed: true, error: null },
         web_search: { state: "idle", visits: 0, currentQuery: "", currentReason: "", newEvidence: 0, staffed: true, error: null },
@@ -122,7 +126,7 @@
   let domNodes = null;
   let activeTransits = new Set();
 
-  // 3. Pure Event Interpreter (BUILD3.md event -> action mapping)
+  // 3. Pure Event Interpreter (SSE Telemetry -> Studio Action)
   function interpretEvent(ev) {
     if (!ev || typeof ev !== "object") return [];
     const actions = [];
@@ -133,7 +137,7 @@
     if (kind === "objective") {
       actions.push({ type: "MANAGER_RECEIVE", objective: d.objective || ev.text });
       if (Array.isArray(d.available_tools)) {
-        actions.push({ type: "STAFF_DESKS", availableTools: d.available_tools });
+        actions.push({ type: "STAFF_STATIONS", availableTools: d.available_tools });
       }
     } else if (kind === "planning" && phase === "Planning the next step") {
       actions.push({ type: "MANAGER_PLAN", step: d.step || 1 });
@@ -150,7 +154,7 @@
         callIndex: d.call_index || 1,
       });
       actions.push({
-        type: "WORKER_ASSIGN",
+        type: "SPECIALIST_ASSIGN",
         tool: d.tool,
         taskId: taskId,
         query: d.query,
@@ -161,25 +165,25 @@
       const count = typeof d.new_evidence === "number" ? d.new_evidence : 0;
       const total = typeof d.total_evidence === "number" ? d.total_evidence : count;
       actions.push({ type: "TASK_RETURN", tool: d.tool, count: count, total: total });
-      actions.push({ type: "WORKER_INBOUND", tool: d.tool, count: count, total: total });
+      actions.push({ type: "SPECIALIST_INBOUND", tool: d.tool, count: count, total: total });
     } else if (kind === "note" && phase === "No results for that angle") {
       actions.push({ type: "TASK_EMPTY", tool: d.tool });
-      actions.push({ type: "WORKER_EMPTY", tool: d.tool });
+      actions.push({ type: "SPECIALIST_EMPTY", tool: d.tool });
     } else if (kind === "note" && phase === "Source unavailable") {
       actions.push({ type: "TASK_FAIL", tool: d.tool, error: d.error || ev.detail });
-      actions.push({ type: "WORKER_ERROR", tool: d.tool, error: d.error || ev.detail });
+      actions.push({ type: "SPECIALIST_ERROR", tool: d.tool, error: d.error || ev.detail });
     } else if (kind === "error") {
       actions.push({ type: "MANAGER_ERROR", detail: ev.detail || ev.text });
     } else if (kind === "final" && phase === "Comparing and prioritising evidence") {
       actions.push({ type: "STAGE_ACTIVATE", stage: "verification" });
-      actions.push({ type: "STAGE_ACTIVATE", stage: "prioritization", delay: 400 });
+      actions.push({ type: "STAGE_ACTIVATE", stage: "prioritization" });
       actions.push({ type: "MANAGER_SYNTHESIZE", evidenceCount: d.evidence });
     } else if (kind === "final" && phase === "Generating intelligence report") {
       actions.push({ type: "STAGE_ACTIVATE", stage: "composition" });
       actions.push({ type: "MANAGER_COMPOSE" });
     } else if (kind === "final" && phase === "Completed") {
       actions.push({
-        type: "OFFICE_SETTLE",
+        type: "STUDIO_SETTLE",
         toolCalls: d.tool_calls,
         evidence: d.evidence,
         toolsUsed: d.tools_used,
@@ -191,7 +195,7 @@
     return actions;
   }
 
-  // 4. Reducer (Pure State Transition)
+  // 4. Pure Reducer
   function reducer(prevState, action) {
     const nextState = JSON.parse(JSON.stringify(prevState));
 
@@ -203,10 +207,10 @@
         nextState.announcement = `Objective assigned: ${action.objective}`;
         break;
 
-      case "STAFF_DESKS":
+      case "STAFF_STATIONS":
         if (Array.isArray(action.availableTools)) {
-          Object.keys(nextState.workers).forEach((tool) => {
-            nextState.workers[tool].staffed = action.availableTools.includes(tool);
+          Object.keys(nextState.specialists).forEach((tool) => {
+            nextState.specialists[tool].staffed = action.availableTools.includes(tool);
           });
         }
         break;
@@ -214,15 +218,15 @@
       case "MANAGER_PLAN":
         nextState.manager.state = "planning";
         nextState.manager.step = action.step;
-        nextState.manager.phase = `Planning Step ${action.step}`;
-        nextState.announcement = `Manager analyzing gathered findings (Step ${action.step})`;
+        nextState.manager.phase = `Reviewing Findings (Step ${action.step})`;
+        nextState.announcement = `Manager analyzing gathered evidence (Step ${action.step})`;
         break;
 
       case "MANAGER_DELEGATE":
         nextState.manager.state = "delegating";
         nextState.manager.reason = action.reason || "";
-        nextState.manager.phase = "Delegating Assignment";
-        nextState.announcement = `Knowledge gap identified: ${action.reason || "Dispatching follow-up query"}`;
+        nextState.manager.phase = "Delegating Follow-Up";
+        nextState.announcement = `Knowledge gap identified: ${action.reason || "Dispatching specialist inquiry"}`;
         break;
 
       case "TASK_CREATE":
@@ -241,47 +245,47 @@
         });
         break;
 
-      case "WORKER_ASSIGN":
-        if (nextState.workers[action.tool]) {
-          const w = nextState.workers[action.tool];
-          w.state = "assigned";
-          w.visits = action.callIndex || (w.visits + 1);
-          w.currentQuery = action.query || "";
-          w.currentReason = action.reason || "";
-          w.error = null;
+      case "SPECIALIST_ASSIGN":
+        if (nextState.specialists[action.tool]) {
+          const s = nextState.specialists[action.tool];
+          s.state = "assigned";
+          s.visits = action.callIndex || (s.visits + 1);
+          s.currentQuery = action.query || "";
+          s.currentReason = action.reason || "";
+          s.error = null;
           nextState.manager.state = "awaiting";
-          nextState.announcement = `${OFFICE_LAYOUT.workers[action.tool]?.name || action.tool} dispatched for ${action.query || "investigation"}`;
+          nextState.announcement = `${STUDIO_LAYOUT.specialists[action.tool]?.name || action.tool} dispatched for ${action.query || "investigation"}`;
         }
         break;
 
-      case "WORKER_INBOUND":
-        if (nextState.workers[action.tool]) {
-          const w = nextState.workers[action.tool];
-          w.state = "inbound";
-          w.newEvidence = action.count;
+      case "SPECIALIST_INBOUND":
+        if (nextState.specialists[action.tool]) {
+          const s = nextState.specialists[action.tool];
+          s.state = "inbound";
+          s.newEvidence = action.count;
           if (typeof action.total === "number") nextState.manager.totalEvidence = action.total;
-          nextState.announcement = `${OFFICE_LAYOUT.workers[action.tool]?.name || action.tool} gathered ${action.count} evidence sources`;
+          nextState.announcement = `${STUDIO_LAYOUT.specialists[action.tool]?.name || action.tool} returned ${action.count} evidence items`;
         }
         break;
 
-      case "WORKER_EMPTY":
-        if (nextState.workers[action.tool]) {
-          nextState.workers[action.tool].state = "empty";
-          nextState.announcement = `${OFFICE_LAYOUT.workers[action.tool]?.name || action.tool} returned 0 results for query`;
+      case "SPECIALIST_EMPTY":
+        if (nextState.specialists[action.tool]) {
+          nextState.specialists[action.tool].state = "empty";
+          nextState.announcement = `${STUDIO_LAYOUT.specialists[action.tool]?.name || action.tool} found 0 matching records`;
         }
         break;
 
-      case "WORKER_ERROR":
-        if (nextState.workers[action.tool]) {
-          nextState.workers[action.tool].state = "error";
-          nextState.workers[action.tool].error = action.error;
-          nextState.announcement = `Source unavailable for ${OFFICE_LAYOUT.workers[action.tool]?.name || action.tool}`;
+      case "SPECIALIST_ERROR":
+        if (nextState.specialists[action.tool]) {
+          nextState.specialists[action.tool].state = "error";
+          nextState.specialists[action.tool].error = action.error;
+          nextState.announcement = `Source unavailable for ${STUDIO_LAYOUT.specialists[action.tool]?.name || action.tool}`;
         }
         break;
 
       case "MANAGER_SYNTHESIZE":
         nextState.manager.state = "synthesizing";
-        nextState.manager.phase = "Synthesizing Evidence";
+        nextState.manager.phase = "Synthesizing Dossier";
         nextState.announcement = `Synthesizing ${action.evidenceCount || nextState.manager.totalEvidence} verified evidence items`;
         break;
 
@@ -298,11 +302,11 @@
         break;
 
       case "MANAGER_COMPLETE":
-      case "OFFICE_SETTLE":
+      case "STUDIO_SETTLE":
         nextState.manager.state = "completed";
-        nextState.manager.phase = "Investigation Completed";
-        Object.keys(nextState.workers).forEach((t) => {
-          if (nextState.workers[t].state !== "error") nextState.workers[t].state = "idle";
+        nextState.manager.phase = "Investigation Complete";
+        Object.keys(nextState.specialists).forEach((t) => {
+          if (nextState.specialists[t].state !== "error") nextState.specialists[t].state = "idle";
         });
         nextState.announcement = "Intelligence brief assembled and verified.";
         break;
@@ -320,205 +324,170 @@
     return nextState;
   }
 
-  // 5. DOM Builder (Creates SVG and HTML Shell Once)
+  // 5. SVG DOM Builder
   function buildScene(container) {
     container.innerHTML = `
-      <section class="office-section" id="office-root" aria-label="Autonomous Intelligence Office Floor Plan">
-        <div class="office-header">
-          <div class="office-title-group">
-            <span class="office-title">Autonomous Intelligence Office</span>
-            <span class="office-badge" id="office-status-pill">STANDING BY</span>
+      <section class="office-section" id="studio-root" aria-label="The Intelligence Studio Workspace">
+        <div class="studio-header">
+          <div class="studio-header-left">
+            <span class="studio-title">The Intelligence Studio</span>
+            <span class="studio-badge" id="studio-status-pill">STANDING BY</span>
           </div>
-          <div class="office-legend">
-            <span><span class="legend-field-dot"></span> Field Sources (Real APIs)</span>
-            <span><span class="legend-stage-dot"></span> Pipeline Stages</span>
+          <div class="studio-legend">
+            <span class="legend-item"><span class="legend-dot-specialist"></span> Real Specialist Stations</span>
+            <span class="legend-item"><span class="legend-dot-stage"></span> Post-Loop Synthesis Bench</span>
           </div>
         </div>
 
-        <div class="office-scene-wrapper">
-          <svg class="office-svg" viewBox="0 0 1200 700" role="img" aria-label="Interactive AI office floor plan">
+        <div class="studio-scene-wrapper">
+          <svg class="studio-svg" viewBox="0 0 1100 640" role="img" aria-label="Spatial Intelligence Studio Canvas">
             <defs>
-              <!-- Drop shadows -->
-              <filter id="soft-shadow" x="-8%" y="-8%" width="120%" height="120%">
-                <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.06"/>
+              <filter id="studio-card-shadow" x="-8%" y="-8%" width="120%" height="120%">
+                <feDropShadow dx="0" dy="2" stdDeviation="4" flood-opacity="0.05"/>
               </filter>
             </defs>
 
-            <!-- Corridors & Spine -->
-            <g class="corridors-layer">
-              <!-- Horizontal Spine -->
-              <line x1="160" y1="290" x2="1040" y2="290" class="corridor-line" />
-              <line x1="160" y1="290" x2="1040" y2="290" class="corridor-guide" />
-              <!-- Trunk to Manager -->
-              <line x1="600" y1="232" x2="600" y2="290" class="corridor-line" />
-              <line x1="600" y1="232" x2="600" y2="290" class="corridor-guide" />
-              <!-- Vertical Desk Drop lines -->
-              <line x1="200" y1="290" x2="200" y2="370" class="corridor-line" />
-              <line x1="450" y1="290" x2="450" y2="370" class="corridor-line" />
-              <line x1="750" y1="290" x2="750" y2="370" class="corridor-line" />
-              <line x1="1000" y1="290" x2="1000" y2="370" class="corridor-line" />
+            <!-- Subtle Flow Trajectories connecting Manager to Specialists -->
+            <g class="studio-trajectories-layer">
+              <!-- Research Path -->
+              <path d="M 480 210 Q 380 150 250 130" class="studio-flow-path" id="flow-research_search" />
+              <!-- News Path -->
+              <path d="M 620 210 Q 720 150 850 130" class="studio-flow-path" id="flow-news_search" />
+              <!-- Web Path -->
+              <path d="M 360 270 Q 270 310 170 350" class="studio-flow-path" id="flow-web_search" />
+              <!-- Patent Path -->
+              <path d="M 740 270 Q 830 310 930 350" class="studio-flow-path" id="flow-patent_search" />
+              <!-- Bench Drop Trunk -->
+              <line x1="550" y1="350" x2="550" y2="470" class="studio-grid-line" />
             </g>
 
-            <!-- Manager Cabin -->
-            <g class="manager-cabin desk-group" id="node-manager" data-state="idle" tabindex="0" role="button" aria-label="Manager Cabin: Autonomous Reasoning Loop">
-              <rect x="340" y="24" width="520" height="208" rx="10" class="manager-cabin-shell" filter="url(#soft-shadow)" />
-              
-              <!-- Assignment Plate -->
-              <rect x="360" y="40" width="480" height="48" class="assignment-plate" />
-              <text x="376" y="56" class="assignment-label">CURRENT OBJECTIVE</text>
-              <text x="376" y="74" class="assignment-text" id="svg-manager-obj">Standing by for investigation target…</text>
+            <!-- Specialist Workstation 1: Research Intelligence (Top West) -->
+            <g class="specialist-group" id="node-specialist-research_search" data-tool="research_search" data-state="idle" tabindex="0" role="button" aria-label="Research Intelligence Workstation">
+              <rect x="160" y="40" width="180" height="110" class="specialist-card" />
+              <!-- Document Sheet Motif -->
+              <rect x="175" y="55" width="40" height="24" class="specialist-sheet-item" />
+              <rect x="180" y="60" width="40" height="24" class="specialist-sheet-item" />
+              <text x="230" y="68" class="specialist-title">Research</text>
+              <text x="230" y="82" class="specialist-meta">OpenAlex · arXiv</text>
+              <!-- State Tag -->
+              <rect x="175" y="112" width="70" height="18" class="specialist-status-tag-bg" />
+              <text x="210" y="124" class="specialist-status-tag-text" id="tag-txt-research_search">STANDBY</text>
+              <!-- Visit Pill -->
+              <rect x="295" y="48" width="28" height="16" class="counter-pill-bg" id="vpill-bg-research_search" display="none" />
+              <text x="309" y="60" class="counter-pill-text" id="vpill-txt-research_search">×1</text>
+            </g>
 
-              <!-- Phase Chip -->
-              <rect x="480" y="102" width="240" height="24" class="manager-phase-chip" />
-              <text x="600" y="118" class="manager-phase-text" id="svg-manager-phase">STANDING BY</text>
+            <!-- Specialist Workstation 2: News Intelligence (Top East) -->
+            <g class="specialist-group" id="node-specialist-news_search" data-tool="news_search" data-state="idle" tabindex="0" role="button" aria-label="News Intelligence Workstation">
+              <rect x="760" y="40" width="180" height="110" class="specialist-card" />
+              <!-- News Strip Motif -->
+              <rect x="775" y="55" width="42" height="12" class="specialist-sheet-item" />
+              <rect x="775" y="70" width="36" height="12" class="specialist-sheet-item" />
+              <text x="830" y="68" class="specialist-title">News Intelligence</text>
+              <text x="830" y="82" class="specialist-meta">Google News RSS</text>
+              <!-- State Tag -->
+              <rect x="775" y="112" width="70" height="18" class="specialist-status-tag-bg" />
+              <text x="810" y="124" class="specialist-status-tag-text" id="tag-txt-news_search">STANDBY</text>
+              <!-- Visit Pill -->
+              <rect x="895" y="48" width="28" height="16" class="counter-pill-bg" id="vpill-bg-news_search" display="none" />
+              <text x="909" y="60" class="counter-pill-text" id="vpill-txt-news_search">×1</text>
+            </g>
 
-              <!-- Manager Desk & Figure -->
-              <rect x="530" y="152" width="140" height="40" class="desk-base" />
-              <rect x="575" y="162" width="50" height="10" class="monitor-screen" id="svg-manager-monitor" />
+            <!-- Specialist Workstation 3: Web Intelligence (Mid West) -->
+            <g class="specialist-group" id="node-specialist-web_search" data-tool="web_search" data-state="idle" tabindex="0" role="button" aria-label="Web Intelligence Workstation">
+              <rect x="80" y="295" width="180" height="110" class="specialist-card" />
+              <!-- Web Window Motif -->
+              <rect x="95" y="310" width="44" height="26" class="specialist-sheet-item" />
+              <text x="150" y="323" class="specialist-title">Web Intelligence</text>
+              <text x="150" y="337" class="specialist-meta">DDGS · Wikipedia</text>
+              <!-- State Tag -->
+              <rect x="95" y="367" width="70" height="18" class="specialist-status-tag-bg" />
+              <text x="130" y="379" class="specialist-status-tag-text" id="tag-txt-web_search">STANDBY</text>
+              <!-- Visit Pill -->
+              <rect x="215" y="303" width="28" height="16" class="counter-pill-bg" id="vpill-bg-web_search" display="none" />
+              <text x="229" y="315" class="counter-pill-text" id="vpill-txt-web_search">×1</text>
+            </g>
+
+            <!-- Specialist Workstation 4: Patent Intelligence (Mid East) -->
+            <g class="specialist-group" id="node-specialist-patent_search" data-tool="patent_search" data-state="idle" tabindex="0" role="button" aria-label="Patent Intelligence Workstation">
+              <rect x="840" y="295" width="180" height="110" class="specialist-card" />
+              <!-- Patent Blueprint Motif -->
+              <rect x="855" y="310" width="44" height="26" class="specialist-sheet-item" />
+              <text x="910" y="323" class="specialist-title">Patent Intelligence</text>
+              <text x="910" y="337" class="specialist-meta">Google Patents</text>
+              <!-- State Tag -->
+              <rect x="855" y="367" width="70" height="18" class="specialist-status-tag-bg" />
+              <text x="890" y="379" class="specialist-status-tag-text" id="tag-txt-patent_search">STANDBY</text>
+              <!-- Visit Pill -->
+              <rect x="975" y="303" width="28" height="16" class="counter-pill-bg" id="vpill-bg-patent_search" display="none" />
+              <text x="989" y="315" class="counter-pill-text" id="vpill-txt-patent_search">×1</text>
+            </g>
+
+            <!-- Central Analysis Table (Manager Coordination Surface) -->
+            <g class="command-table-group" id="node-manager-table" tabindex="0" role="button" aria-label="Central Analysis Table: Autonomous AI Reasoning Loop">
+              <rect x="340" y="190" width="420" height="160" class="command-table-card" />
               
-              <!-- Manager Figure -->
-              <g id="figure-manager" transform="translate(600, 142)">
-                <circle cx="0" cy="0" r="16" class="figure-accent-ring" />
-                <rect x="-10" y="-6" width="20" height="12" rx="6" class="figure-body" />
-                <circle cx="0" cy="-14" r="8" class="figure-head" />
-              </g>
+              <!-- Objective Docket Sheet -->
+              <rect x="360" y="205" width="380" height="46" class="objective-docket" />
+              <text x="375" y="221" class="docket-label">ACTIVE INVESTIGATION TARGET</text>
+              <text x="375" y="238" class="docket-objective-text" id="svg-manager-obj">Standing by for investigation target…</text>
+
+              <!-- State Badge -->
+              <rect x="440" y="262" width="220" height="24" class="manager-state-chip-bg" />
+              <text x="550" y="278" class="manager-state-chip-text" id="svg-manager-phase">READY FOR TARGET</text>
 
               <!-- Evidence Tray -->
-              <rect x="710" y="146" width="130" height="52" class="evidence-tray-bg" />
-              <text x="775" y="166" class="assignment-label" style="text-anchor: middle;">EVIDENCE TRAY</text>
-              <text x="775" y="186" class="tray-count-text" id="svg-manager-tray">0 items</text>
+              <rect x="580" y="298" width="160" height="38" class="manager-evidence-tray-bg" />
+              <text x="660" y="312" class="docket-label" style="text-anchor: middle;">EVIDENCE TRAY</text>
+              <text x="660" y="327" class="tray-count-label" id="svg-manager-tray">0 items</text>
             </g>
 
-            <!-- Category A Field Workers (Desks + Field Zones + Figures) -->
-            <g class="field-workers-layer">
+            <!-- Post-Loop Synthesis Bench (Category B Code Stages) -->
+            <g class="synthesis-bench-layer">
+              <rect x="320" y="470" width="460" height="115" class="bench-card" />
+              <text x="336" y="490" class="docket-label">POST-LOOP SYNTHESIS BENCH (REPORT PIPELINE STAGES)</text>
               
-              <!-- Desk 1: Research -->
-              <g class="desk-group" id="node-worker-research_search" data-tool="research_search" data-state="idle" tabindex="0" role="button" aria-label="Research Intelligence Desk">
-                <rect x="120" y="372" width="160" height="56" class="desk-base" />
-                <text x="200" y="394" class="desk-label">Research Intelligence</text>
-                <text x="200" y="412" class="desk-tool-name">research_search</text>
-                <rect x="180" y="380" width="40" height="8" class="monitor-screen" />
-                <!-- Visit Badge -->
-                <rect x="250" y="364" width="26" height="16" class="visit-badge-bg" id="vbadge-bg-research_search" display="none" />
-                <text x="263" y="376" class="visit-badge-text" id="vbadge-txt-research_search">×1</text>
-                <!-- Field Zone -->
-                <rect x="135" y="475" width="130" height="32" class="field-zone-marker" />
-                <text x="200" y="495" class="field-zone-label">ARXIV / OPENALEX</text>
-                <!-- Moving Figure -->
-                <g class="worker-figure" id="fig-research_search" transform="translate(200, 356)">
-                  <circle cx="0" cy="0" r="14" class="figure-accent-ring" />
-                  <rect x="-8" y="-5" width="16" height="10" rx="5" class="figure-body" />
-                  <circle cx="0" cy="-12" r="7" class="figure-head" />
-                </g>
+              <!-- Stage 1: Verification -->
+              <g class="stage-group" id="node-stage-verification" data-stage="verification" tabindex="0" role="button" aria-label="Evidence Verification Stage">
+                <rect x="340" y="502" width="130" height="65" class="stage-card-box" id="sbox-verification" />
+                <text x="405" y="526" class="stage-name">Verification</text>
+                <rect x="382" y="538" width="46" height="14" class="stage-pill-bg" />
+                <text x="405" y="549" class="stage-pill-text">STAGE</text>
               </g>
 
-              <!-- Desk 2: News -->
-              <g class="desk-group" id="node-worker-news_search" data-tool="news_search" data-state="idle" tabindex="0" role="button" aria-label="News Intelligence Desk">
-                <rect x="370" y="372" width="160" height="56" class="desk-base" />
-                <text x="450" y="394" class="desk-label">News Intelligence</text>
-                <text x="450" y="412" class="desk-tool-name">news_search</text>
-                <rect x="430" y="380" width="40" height="8" class="monitor-screen" />
-                <!-- Visit Badge -->
-                <rect x="500" y="364" width="26" height="16" class="visit-badge-bg" id="vbadge-bg-news_search" display="none" />
-                <text x="513" y="376" class="visit-badge-text" id="vbadge-txt-news_search">×1</text>
-                <!-- Field Zone -->
-                <rect x="385" y="475" width="130" height="32" class="field-zone-marker" />
-                <text x="450" y="495" class="field-zone-label">GOOGLE NEWS RSS</text>
-                <!-- Moving Figure -->
-                <g class="worker-figure" id="fig-news_search" transform="translate(450, 356)">
-                  <circle cx="0" cy="0" r="14" class="figure-accent-ring" />
-                  <rect x="-8" y="-5" width="16" height="10" rx="5" class="figure-body" />
-                  <circle cx="0" cy="-12" r="7" class="figure-head" />
-                </g>
+              <!-- Stage 2: Prioritization -->
+              <g class="stage-group" id="node-stage-prioritization" data-stage="prioritization" tabindex="0" role="button" aria-label="Signal Prioritization Stage">
+                <rect x="485" y="502" width="130" height="65" class="stage-card-box" id="sbox-prioritization" />
+                <text x="550" y="526" class="stage-name">Prioritization</text>
+                <rect x="527" y="538" width="46" height="14" class="stage-pill-bg" />
+                <text x="550" y="549" class="stage-pill-text">STAGE</text>
               </g>
 
-              <!-- Desk 3: Web -->
-              <g class="desk-group" id="node-worker-web_search" data-tool="web_search" data-state="idle" tabindex="0" role="button" aria-label="Web Intelligence Desk">
-                <rect x="670" y="372" width="160" height="56" class="desk-base" />
-                <text x="750" y="394" class="desk-label">Web Intelligence</text>
-                <text x="750" y="412" class="desk-tool-name">web_search</text>
-                <rect x="730" y="380" width="40" height="8" class="monitor-screen" />
-                <!-- Visit Badge -->
-                <rect x="800" y="364" width="26" height="16" class="visit-badge-bg" id="vbadge-bg-web_search" display="none" />
-                <text x="813" y="376" class="visit-badge-text" id="vbadge-txt-web_search">×1</text>
-                <!-- Field Zone -->
-                <rect x="685" y="475" width="130" height="32" class="field-zone-marker" />
-                <text x="750" y="495" class="field-zone-label">DUCKDUCKGO / WIKI</text>
-                <!-- Moving Figure -->
-                <g class="worker-figure" id="fig-web_search" transform="translate(750, 356)">
-                  <circle cx="0" cy="0" r="14" class="figure-accent-ring" />
-                  <rect x="-8" y="-5" width="16" height="10" rx="5" class="figure-body" />
-                  <circle cx="0" cy="-12" r="7" class="figure-head" />
-                </g>
+              <!-- Stage 3: Composition -->
+              <g class="stage-group" id="node-stage-composition" data-stage="composition" tabindex="0" role="button" aria-label="Dossier Composition Stage">
+                <rect x="630" y="502" width="130" height="65" class="stage-card-box" id="sbox-composition" />
+                <text x="695" y="526" class="stage-name">Composition</text>
+                <rect x="672" y="538" width="46" height="14" class="stage-pill-bg" />
+                <text x="695" y="549" class="stage-pill-text">STAGE</text>
               </g>
-
-              <!-- Desk 4: Patents -->
-              <g class="desk-group" id="node-worker-patent_search" data-tool="patent_search" data-state="idle" tabindex="0" role="button" aria-label="Patent Intelligence Desk">
-                <rect x="920" y="372" width="160" height="56" class="desk-base" />
-                <text x="1000" y="394" class="desk-label">Patent Intelligence</text>
-                <text x="1000" y="412" class="desk-tool-name">patent_search</text>
-                <rect x="980" y="380" width="40" height="8" class="monitor-screen" />
-                <!-- Visit Badge -->
-                <rect x="1050" y="364" width="26" height="16" class="visit-badge-bg" id="vbadge-bg-patent_search" display="none" />
-                <text x="1063" y="376" class="visit-badge-text" id="vbadge-txt-patent_search">×1</text>
-                <!-- Field Zone -->
-                <rect x="935" y="475" width="130" height="32" class="field-zone-marker" />
-                <text x="1000" y="495" class="field-zone-label">GOOGLE PATENTS</text>
-                <!-- Moving Figure -->
-                <g class="worker-figure" id="fig-patent_search" transform="translate(1000, 356)">
-                  <circle cx="0" cy="0" r="14" class="figure-accent-ring" />
-                  <rect x="-8" y="-5" width="16" height="10" rx="5" class="figure-body" />
-                  <circle cx="0" cy="-12" r="7" class="figure-head" />
-                </g>
-              </g>
-
             </g>
 
-            <!-- Category B Back Office Stages (Dashed, Post-Loop Report Pipeline) -->
-            <g class="back-office-layer">
-              
-              <!-- Stage 5: Verification -->
-              <g class="desk-group stage-desk" id="node-stage-verification" data-stage="verification" tabindex="0" role="button" aria-label="Evidence Verification Pipeline Stage">
-                <rect x="250" y="572" width="160" height="56" class="desk-base" />
-                <text x="330" y="594" class="desk-label">Evidence Verification</text>
-                <text x="330" y="612" class="desk-tool-name">citation_validator</text>
-                <rect x="360" y="560" width="42" height="16" class="stage-badge-bg" />
-                <text x="381" y="572" class="stage-badge-text">STAGE</text>
-              </g>
-
-              <!-- Stage 6: Prioritization -->
-              <g class="desk-group stage-desk" id="node-stage-prioritization" data-stage="prioritization" tabindex="0" role="button" aria-label="Signal Prioritization Pipeline Stage">
-                <rect x="520" y="572" width="160" height="56" class="desk-base" />
-                <text x="600" y="594" class="desk-label">Signal Prioritization</text>
-                <text x="600" y="612" class="desk-tool-name">tier_categorizer</text>
-                <rect x="630" y="560" width="42" height="16" class="stage-badge-bg" />
-                <text x="651" y="572" class="stage-badge-text">STAGE</text>
-              </g>
-
-              <!-- Stage 7: Composition -->
-              <g class="desk-group stage-desk" id="node-stage-composition" data-stage="composition" tabindex="0" role="button" aria-label="Report Composition Pipeline Stage">
-                <rect x="790" y="572" width="160" height="56" class="desk-base" />
-                <text x="870" y="594" class="desk-label">Report Composition</text>
-                <text x="870" y="612" class="desk-tool-name">report_assembler</text>
-                <rect x="900" y="560" width="42" height="16" class="stage-badge-bg" />
-                <text x="921" y="572" class="stage-badge-text">STAGE</text>
-              </g>
-
-            </g>
+            <!-- Dynamic Information Packets Layer -->
+            <g class="packets-layer" id="packets-host"></g>
           </svg>
 
-          <!-- Responsive Office Roster for screens < 768px -->
-          <ul class="office-roster-list" id="office-roster"></ul>
+          <!-- Responsive Studio Roster for mobile < 768px -->
+          <ul class="studio-roster-list" id="studio-roster"></ul>
         </div>
 
         <!-- Accessible Live Announcer -->
-        <div class="sr-only" aria-live="polite" id="office-live-announcer"></div>
+        <div class="sr-only" aria-live="polite" id="studio-live-announcer"></div>
 
-        <!-- Interactive Drawer -->
-        <div class="office-drawer" id="office-drawer" aria-hidden="true">
+        <!-- Slide-Out Details Drawer -->
+        <div class="studio-drawer" id="studio-drawer" aria-hidden="true">
           <div class="drawer-header">
-            <div class="drawer-title" id="drawer-title">Entity Detail</div>
-            <button type="button" class="drawer-close-btn" id="btn-close-drawer" aria-label="Close detail drawer">&times;</button>
+            <div class="drawer-title" id="drawer-title">Station Dossier</div>
+            <button type="button" class="drawer-close-btn" id="btn-close-drawer" aria-label="Close station dossier">&times;</button>
           </div>
           <div class="drawer-body" id="drawer-content"></div>
         </div>
@@ -526,168 +495,155 @@
     `;
 
     domNodes = {
-      root: document.getElementById("office-root"),
-      statusPill: document.getElementById("office-status-pill"),
-      manager: document.getElementById("node-manager"),
+      root: document.getElementById("studio-root"),
+      statusPill: document.getElementById("studio-status-pill"),
+      managerTable: document.getElementById("node-manager-table"),
       managerObj: document.getElementById("svg-manager-obj"),
       managerPhase: document.getElementById("svg-manager-phase"),
       managerTray: document.getElementById("svg-manager-tray"),
-      drawer: document.getElementById("office-drawer"),
+      packetsHost: document.getElementById("packets-host"),
+      drawer: document.getElementById("studio-drawer"),
       drawerTitle: document.getElementById("drawer-title"),
       drawerContent: document.getElementById("drawer-content"),
       drawerClose: document.getElementById("btn-close-drawer"),
-      announcer: document.getElementById("office-live-announcer"),
-      roster: document.getElementById("office-roster"),
+      announcer: document.getElementById("studio-live-announcer"),
+      roster: document.getElementById("studio-roster"),
     };
 
     wireDrawerEvents();
   }
 
-  // 6. Polyline Travel Engine (rAF interpolated, halts on idle)
-  function travel(figureEl, polyline, durationMs, onComplete) {
-    if (!figureEl || !Array.isArray(polyline) || polyline.length < 2) {
-      if (typeof onComplete === "function") onComplete();
-      return;
-    }
+  // 6. Tactile Information Packet Animation Engine
+  function dispatchInformationPacket(tool, queryText, isReturn, evidenceCount) {
+    if (!domNodes || !domNodes.packetsHost) return;
+    const layout = STUDIO_LAYOUT.specialists[tool];
+    if (!layout || !layout.packetPath) return;
 
     // Check reduced motion preference
     if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      const endPoint = polyline[polyline.length - 1];
-      figureEl.setAttribute("transform", `translate(${endPoint.x}, ${endPoint.y})`);
-      if (typeof onComplete === "function") onComplete();
       return;
     }
 
-    // Calculate segment lengths
-    const segLengths = [];
-    let totalLen = 0;
-    for (let i = 0; i < polyline.length - 1; i++) {
-      const dx = polyline[i + 1].x - polyline[i].x;
-      const dy = polyline[i + 1].y - polyline[i].y;
-      const len = Math.hypot(dx, dy);
-      segLengths.push(len);
-      totalLen += len;
-    }
+    const pathPoints = isReturn ? layout.packetPath.slice().reverse() : layout.packetPath.slice();
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    g.setAttribute("class", "packet-card-group");
 
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    rect.setAttribute("x", "-35");
+    rect.setAttribute("y", "-14");
+    rect.setAttribute("width", "70");
+    rect.setAttribute("height", "28");
+    rect.setAttribute("class", "packet-card");
+
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", "0");
+    text.setAttribute("y", "3");
+    text.setAttribute("text-anchor", "middle");
+    text.setAttribute("class", "packet-title");
+    text.textContent = isReturn ? `+${evidenceCount || 1} items` : (tool.split("_")[0] || "tool").toUpperCase();
+
+    g.appendChild(rect);
+    g.appendChild(text);
+    domNodes.packetsHost.appendChild(g);
+
+    // Light up flow path
+    const flowPath = document.getElementById(`flow-${tool}`);
+    if (flowPath) flowPath.classList.add("active");
+
+    const durationMs = 650;
     const startTime = performance.now();
     const transitId = Symbol();
     activeTransits.add(transitId);
 
     function frame(now) {
       const elapsed = now - startTime;
-      const rawP = Math.min(1, elapsed / durationMs);
-      // Easing: cubic-bezier(.4,0,.2,1) approximate easeInOut
-      const t = rawP < 0.5 ? 2 * rawP * rawP : 1 - Math.pow(-2 * rawP + 2, 2) / 2;
+      const t = Math.min(1, elapsed / durationMs);
+      const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 
-      const targetDist = t * totalLen;
-      let currDist = 0;
-      let curPoint = polyline[0];
+      // Interpolate along path
+      const p1 = pathPoints[0];
+      const p2 = pathPoints[pathPoints.length - 1];
+      const cx = p1.x + (p2.x - p1.x) * ease;
+      const cy = p1.y + (p2.y - p1.y) * ease;
 
-      for (let i = 0; i < segLengths.length; i++) {
-        if (currDist + segLengths[i] >= targetDist || i === segLengths.length - 1) {
-          const segT = segLengths[i] > 0 ? (targetDist - currDist) / segLengths[i] : 1;
-          curPoint = {
-            x: polyline[i].x + (polyline[i + 1].x - polyline[i].x) * segT,
-            y: polyline[i].y + (polyline[i + 1].y - polyline[i].y) * segT,
-          };
-          break;
-        }
-        currDist += segLengths[i];
-      }
+      g.setAttribute("transform", `translate(${cx.toFixed(1)}, ${cy.toFixed(1)})`);
 
-      figureEl.setAttribute("transform", `translate(${curPoint.x.toFixed(1)}, ${curPoint.y.toFixed(1)})`);
-
-      if (rawP < 1) {
+      if (t < 1) {
         requestAnimationFrame(frame);
       } else {
         activeTransits.delete(transitId);
-        if (typeof onComplete === "function") onComplete();
+        if (flowPath) flowPath.classList.remove("active");
+        if (g.parentNode) g.parentNode.removeChild(g);
       }
     }
 
     requestAnimationFrame(frame);
   }
 
-  // 7. Render Office (Sets data-state attributes & text nodes)
-  function renderOffice(st) {
+  // 7. Render Studio State (Sets data-state attributes & text)
+  function renderStudio(st) {
     if (!domNodes) return;
 
-    // Manager
+    // Manager Surface
     const m = st.manager;
-    domNodes.manager.setAttribute("data-state", m.state);
-    domNodes.managerObj.textContent = m.objective ? (m.objective.length > 52 ? m.objective.slice(0, 50) + "…" : m.objective) : "Standing by for target…";
+    domNodes.managerObj.textContent = m.objective ? (m.objective.length > 48 ? m.objective.slice(0, 46) + "…" : m.objective) : "Standing by for target…";
     domNodes.managerPhase.textContent = m.phase.toUpperCase();
     domNodes.managerTray.textContent = `${m.totalEvidence} item${m.totalEvidence === 1 ? "" : "s"}`;
     domNodes.statusPill.textContent = m.phase.toUpperCase();
 
-    // Field Workers
-    Object.entries(st.workers).forEach(([tool, w]) => {
-      const node = document.getElementById(`node-worker-${tool}`);
-      const fig = document.getElementById(`fig-${tool}`);
-      const vbg = document.getElementById(`vbadge-bg-${tool}`);
-      const vtxt = document.getElementById(`vbadge-txt-${tool}`);
+    // Specialist Workstations
+    Object.entries(st.specialists).forEach(([tool, s]) => {
+      const node = document.getElementById(`node-specialist-${tool}`);
+      const tagTxt = document.getElementById(`tag-txt-${tool}`);
+      const vbg = document.getElementById(`vpill-bg-${tool}`);
+      const vtxt = document.getElementById(`vpill-txt-${tool}`);
 
       if (node) {
-        node.setAttribute("data-state", w.state);
-        node.classList.toggle("is-unstaffed", !w.staffed);
+        node.setAttribute("data-state", s.state);
+        node.classList.toggle("is-unstaffed", !s.staffed);
+      }
+
+      if (tagTxt) {
+        if (s.state === "assigned") tagTxt.textContent = "ASSIGNED";
+        else if (s.state === "working") tagTxt.textContent = "INVESTIGATING";
+        else if (s.state === "inbound") tagTxt.textContent = "RETURNING";
+        else if (s.state === "empty") tagTxt.textContent = "0 RECORDS";
+        else if (s.state === "error") tagTxt.textContent = "UNAVAILABLE";
+        else tagTxt.textContent = s.visits > 0 ? "COMPLETED" : "STANDBY";
       }
 
       if (vbg && vtxt) {
-        if (w.visits > 1) {
+        if (s.visits > 1) {
           vbg.setAttribute("display", "inline");
-          vtxt.textContent = `×${w.visits}`;
+          vtxt.textContent = `×${s.visits}`;
         } else {
           vbg.setAttribute("display", "none");
         }
       }
 
-      // Handle transit motions if triggered
-      if (fig && !st.hydrating) {
-        const layout = OFFICE_LAYOUT.workers[tool];
-        if (layout) {
-          if (w.state === "assigned") {
-            // Outbound dispatch: desk -> field zone
-            travel(fig, [
-              { x: layout.center.x, y: layout.center.y - 44 },
-              { x: layout.center.x, y: layout.fieldZone.y - 12 },
-            ], 600, () => {
-              w.state = "working";
-              if (node) node.setAttribute("data-state", "working");
-            });
-          } else if (w.state === "inbound") {
-            // Inbound return: field zone -> corridor -> manager cabin -> desk
-            travel(fig, [
-              { x: layout.center.x, y: layout.fieldZone.y - 12 },
-              { x: layout.center.x, y: OFFICE_LAYOUT.corridor.spineY },
-              { x: OFFICE_LAYOUT.corridor.trunkX, y: OFFICE_LAYOUT.corridor.spineY },
-              { x: OFFICE_LAYOUT.corridor.trunkX, y: 245 },
-            ], 750, () => {
-              // Settle at desk
-              travel(fig, [
-                { x: OFFICE_LAYOUT.corridor.trunkX, y: OFFICE_LAYOUT.corridor.spineY },
-                { x: layout.center.x, y: OFFICE_LAYOUT.corridor.spineY },
-                { x: layout.center.x, y: layout.center.y - 44 },
-              ], 500);
-            });
-          }
-        }
+      // Trigger packet animation on new events
+      if (s.state === "assigned" && !st.hydrating) {
+        dispatchInformationPacket(tool, s.currentQuery, false);
+        s.state = "working";
+      } else if (s.state === "inbound" && !st.hydrating) {
+        dispatchInformationPacket(tool, s.currentQuery, true, s.newEvidence);
       }
     });
 
-    // Pipeline Stages
-    Object.entries(st.stages).forEach(([stageKey, s]) => {
-      const node = document.getElementById(`node-stage-${stageKey}`);
-      if (node) {
-        node.setAttribute("data-state", s.active ? "active" : "idle");
+    // Synthesis Bench Stages
+    Object.entries(st.stages).forEach(([stageKey, sg]) => {
+      const sbox = document.getElementById(`sbox-${stageKey}`);
+      if (sbox) {
+        sbox.classList.toggle("active", Boolean(sg.active));
       }
     });
 
-    // Accessibility Live Announcer
+    // Live Announcer
     if (st.announcement && domNodes.announcer) {
       domNodes.announcer.textContent = st.announcement;
     }
 
-    // Responsive Roster List Update
+    // Responsive Roster List
     renderRoster(st);
   }
 
@@ -699,25 +655,25 @@
     const mRow = document.createElement("li");
     mRow.className = "roster-row";
     mRow.innerHTML = `
-      <span><strong>Manager:</strong> ${st.manager.objective ? st.manager.objective.slice(0, 30) + '…' : 'Idle'}</span>
-      <span class="mono office-badge">${st.manager.phase}</span>
+      <span><strong>Analysis Lead:</strong> ${st.manager.objective ? st.manager.objective.slice(0, 32) + '…' : 'Standing by'}</span>
+      <span class="mono studio-badge">${st.manager.phase}</span>
     `;
     domNodes.roster.appendChild(mRow);
 
-    // Worker rows
-    Object.entries(st.workers).forEach(([tool, w]) => {
-      const info = OFFICE_LAYOUT.workers[tool];
+    // Specialist rows
+    Object.entries(st.specialists).forEach(([tool, s]) => {
+      const info = STUDIO_LAYOUT.specialists[tool];
       const row = document.createElement("li");
       row.className = "roster-row";
       row.innerHTML = `
-        <span><strong>${info?.name || tool}:</strong> ${w.visits > 0 ? `Called ×${w.visits}` : 'Standby'}</span>
-        <span class="mono">${w.state.toUpperCase()}</span>
+        <span><strong>${info?.name || tool}:</strong> ${s.visits > 0 ? `Invoked ×${s.visits}` : 'Standby'}</span>
+        <span class="mono">${s.state.toUpperCase()}</span>
       `;
       domNodes.roster.appendChild(row);
     });
   }
 
-  // 8. Interactive Drawers (Progressive Disclosure)
+  // 8. Slide-Out Dossier Drawer (Progressive Disclosure)
   function wireDrawerEvents() {
     if (!domNodes) return;
 
@@ -726,25 +682,25 @@
       if (e.key === "Escape") closeDrawer();
     });
 
-    // Manager Click
-    domNodes.manager.addEventListener("click", openManagerDrawer);
-    domNodes.manager.addEventListener("keydown", (e) => {
+    // Manager Table Click
+    domNodes.managerTable.addEventListener("click", openManagerDrawer);
+    domNodes.managerTable.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openManagerDrawer(); }
     });
 
-    // Category A Worker Clicks
-    Object.keys(OFFICE_LAYOUT.workers).forEach((tool) => {
-      const el = document.getElementById(`node-worker-${tool}`);
+    // Specialist Clicks
+    Object.keys(STUDIO_LAYOUT.specialists).forEach((tool) => {
+      const el = document.getElementById(`node-specialist-${tool}`);
       if (el) {
-        el.addEventListener("click", () => openWorkerDrawer(tool));
+        el.addEventListener("click", () => openSpecialistDrawer(tool));
         el.addEventListener("keydown", (e) => {
-          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWorkerDrawer(tool); }
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openSpecialistDrawer(tool); }
         });
       }
     });
 
-    // Category B Stage Clicks
-    Object.keys(OFFICE_LAYOUT.stages).forEach((stageKey) => {
+    // Synthesis Bench Stage Clicks
+    Object.keys(STUDIO_LAYOUT.stages).forEach((stageKey) => {
       const el = document.getElementById(`node-stage-${stageKey}`);
       if (el) {
         el.addEventListener("click", () => openStageDrawer(stageKey));
@@ -775,7 +731,7 @@
     if (m.dispatches.length) {
       dispatchesHtml = `
         <div class="drawer-meta-item">
-          <div class="drawer-meta-label">DISPATCH HISTORY (${m.dispatches.length})</div>
+          <div class="drawer-meta-label">INVESTIGATION DISPATCH TRAIL (${m.dispatches.length})</div>
           <ul class="drawer-list">
             ${m.dispatches.map((d, i) => `
               <li class="drawer-list-item">
@@ -791,7 +747,7 @@
 
     const html = `
       <div class="drawer-meta-item">
-        <div class="drawer-meta-label">CURRENT OBJECTIVE</div>
+        <div class="drawer-meta-label">CENTRAL OBJECTIVE</div>
         <div class="drawer-meta-val">${m.objective || "No active objective"}</div>
       </div>
       <div class="drawer-meta-item">
@@ -799,17 +755,17 @@
         <div class="drawer-meta-val">${m.phase}</div>
       </div>
       <div class="drawer-meta-item">
-        <div class="drawer-meta-label">ACCUMULATED EVIDENCE</div>
+        <div class="drawer-meta-label">COLLECTED EVIDENCE POOL</div>
         <div class="drawer-meta-val">${m.totalEvidence} verified items in tray</div>
       </div>
       ${dispatchesHtml}
     `;
-    openDrawer("Manager Reasoning Dossier", html);
+    openDrawer("Analysis Lead Dossier", html);
   }
 
-  function openWorkerDrawer(tool) {
-    const w = state.workers[tool];
-    const info = OFFICE_LAYOUT.workers[tool];
+  function openSpecialistDrawer(tool) {
+    const s = state.specialists[tool];
+    const info = STUDIO_LAYOUT.specialists[tool];
     if (!info) return;
 
     let dispatchesHtml = "";
@@ -817,11 +773,11 @@
     if (relevantDispatches.length) {
       dispatchesHtml = `
         <div class="drawer-meta-item">
-          <div class="drawer-meta-label">TOOL INVOCATIONS (${relevantDispatches.length})</div>
+          <div class="drawer-meta-label">DISPATCH HISTORY (${relevantDispatches.length})</div>
           <ul class="drawer-list">
             ${relevantDispatches.map((d, i) => `
               <li class="drawer-list-item">
-                <div><strong>Dispatch #${i + 1}:</strong> "${d.query || ""}"</div>
+                <div><strong>Query #${i + 1}:</strong> "${d.query || ""}"</div>
                 ${d.reason ? `<div><small>${d.reason}</small></div>` : ""}
               </li>
             `).join("")}
@@ -832,21 +788,21 @@
 
     const html = `
       <div class="drawer-meta-item">
-        <div class="drawer-meta-label">TOOL PROVIDER</div>
+        <div class="drawer-meta-label">SPECIALIST WORKSTATION</div>
         <div class="drawer-meta-val"><code>${tool}</code></div>
       </div>
       <div class="drawer-meta-item">
-        <div class="drawer-meta-label">CURRENT STATE</div>
-        <div class="drawer-meta-val">${w ? w.state.toUpperCase() : "IDLE"}</div>
+        <div class="drawer-meta-label">INTEGRATED PROVIDERS</div>
+        <div class="drawer-meta-val">${info.provider}</div>
       </div>
       <div class="drawer-meta-item">
-        <div class="drawer-meta-label">TOTAL VISITS</div>
-        <div class="drawer-meta-val">${w ? w.visits : 0} times dispatched</div>
+        <div class="drawer-meta-label">TOTAL DISPATCHES</div>
+        <div class="drawer-meta-val">${s ? s.visits : 0} invocations</div>
       </div>
-      ${w && w.error ? `
+      ${s && s.error ? `
         <div class="drawer-meta-item">
           <div class="drawer-meta-label" style="color:var(--danger)">LAST ERROR</div>
-          <div class="drawer-meta-val" style="color:var(--danger)">${w.error}</div>
+          <div class="drawer-meta-val" style="color:var(--danger)">${s.error}</div>
         </div>
       ` : ""}
       ${dispatchesHtml}
@@ -855,7 +811,7 @@
   }
 
   function openStageDrawer(stageKey) {
-    const info = OFFICE_LAYOUT.stages[stageKey];
+    const info = STUDIO_LAYOUT.stages[stageKey];
     if (!info) return;
 
     const descriptions = {
@@ -866,7 +822,7 @@
 
     const html = `
       <div class="drawer-meta-item">
-        <div class="drawer-meta-label">PIPELINE STAGE</div>
+        <div class="drawer-meta-label">SYNTHESIS BENCH STAGE</div>
         <div class="drawer-meta-val"><code>${info.code}</code></div>
       </div>
       <div class="drawer-meta-item">
@@ -875,7 +831,7 @@
       </div>
       <div class="drawer-meta-item">
         <div class="drawer-meta-label">NATURE</div>
-        <div class="drawer-meta-val">Back-office stage (part of report assembly, not an autonomous agent).</div>
+        <div class="drawer-meta-val">Report synthesis stage (not an autonomous agent).</div>
       </div>
     `;
     openDrawer(`${info.name} (Pipeline Stage)`, html);
@@ -885,7 +841,7 @@
   window.Office = {
     mount: function (containerEl) {
       buildScene(containerEl);
-      renderOffice(state);
+      renderStudio(state);
     },
 
     handleEvent: function (ev) {
@@ -894,9 +850,9 @@
         actions.forEach((act) => {
           state = reducer(state, act);
         });
-        renderOffice(state);
+        renderStudio(state);
       } catch (err) {
-        console.error("Office.handleEvent error caught safely:", err);
+        console.error("Studio.handleEvent error caught safely:", err);
       }
     },
 
@@ -913,14 +869,14 @@
       });
 
       state.hydrating = false;
-      renderOffice(state);
+      renderStudio(state);
     },
 
     reset: function () {
       state = createInitialState();
       activeTransits.clear();
       closeDrawer();
-      renderOffice(state);
+      renderStudio(state);
     },
 
     getState: function () {
