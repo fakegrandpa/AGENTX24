@@ -27,6 +27,19 @@ def get_advertised_tools() -> list[dict[str, Any]]:
     return advertised
 
 
+def extract_reason(args: dict[str, Any]) -> str | None:
+    """Returns the agent's own justification for this tool call, if it supplied one.
+
+    `reason` is telemetry-only: it is declared in each tool schema so the model
+    authors it, but it is NEVER forwarded to a provider function (their signature
+    is f(query, limit)). A missing reason is not an error.
+    """
+    reason = args.get("reason")
+    if isinstance(reason, str) and reason.strip():
+        return reason.strip()
+    return None
+
+
 def execute_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
     """Validates and executes a tool call, returning structured error data on failure."""
     if name not in TOOL_REGISTRY:
@@ -56,6 +69,7 @@ def execute_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
     limit = max(1, min(limit, 15))
 
     try:
+        # Only query and limit are forwarded; 'reason' stays out of the provider call.
         return func(query=query.strip(), limit=limit)
     except Exception as e:
         return {

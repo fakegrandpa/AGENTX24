@@ -11,6 +11,7 @@ class PhaseEnum(str, Enum):
     CHECKING_NEWS = "Checking recent industry developments"
     SEARCHING_WEB = "Searching the web"
     SEARCHING_PATENTS = "Searching patent records"
+    IDENTIFYING_GAPS = "Identifying knowledge gaps"
     EVIDENCE_FOUND = "Evidence found"
     NO_RESULTS = "No results for that angle"
     SOURCE_UNAVAILABLE = "Source unavailable"

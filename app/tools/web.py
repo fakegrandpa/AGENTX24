@@ -176,8 +176,12 @@ WEB_SEARCH_SCHEMA = {
                 "type": "integer",
                 "description": "Maximum number of results to return (default 8, max 15).",
             },
+            "reason": {
+                "type": "string",
+                "description": "One short sentence stating why this tool is needed right now, given the investigation objective and the evidence already gathered.",
+            },
         },
-        "required": ["query"],
+        "required": ["query", "reason"],
     },
 }
 

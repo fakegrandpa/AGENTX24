@@ -14,7 +14,7 @@ from app.config import (
 from app.llm import LLMResponse, propose_next_step, resolve_model
 from app.models import Evidence, PhaseEnum, Run, TelemetryEvent
 from app.report import assemble_report
-from app.tools import execute_tool, get_advertised_tools
+from app.tools import execute_tool, extract_reason, get_advertised_tools
 from app.tools.patents import is_patent_tool_available
 
 if sys.stdout and hasattr(sys.stdout, "reconfigure"):
@@ -111,6 +111,10 @@ def run_investigation(
         kind="objective",
         text=f"Target: {objective}",
         detail=f"Investigating {objective} across news, research, and web signals",
+        data={
+            "objective": objective,
+            "available_tools": [t["name"] for t in get_advertised_tools()],
+        },
     )
 
     # Prepare conversation history for Gemini
@@ -149,6 +153,7 @@ def run_investigation(
             kind="planning",
             text=f"Analyzing gathered findings (Step {iterations})",
             detail=None,
+            data={"step": iterations},
         )
 
         try:
@@ -186,13 +191,33 @@ def run_investigation(
             tool_phase = _tool_to_phase(call.name)
             arg_preview = call.args.get("query", "")
             call_detail = f"{call.name}(\"{arg_preview}\")" if arg_preview else f"{call.name}()"
+            # The agent's own justification for this call, supplied as a declared tool
+            # argument. Never invented here: if the model omitted it, it stays None.
+            reason = extract_reason(call.args)
+
+            # A follow-up tool call made while evidence already exists IS the agent
+            # acting on a knowledge gap. Surfaced using the model's own reason only.
+            if run.evidence and iterations > 1:
+                emit(
+                    phase=PhaseEnum.IDENTIFYING_GAPS,
+                    kind="planning",
+                    text="Additional evidence required",
+                    detail=reason,
+                    data={"step": iterations, "next_tool": call.name, "reason": reason},
+                )
 
             emit(
                 phase=tool_phase,
                 kind="tool_selected",
-                text=f"Querying {call.name}",
+                text=f"Selected {call.name}",
                 detail=call_detail,
-                data={"tool": call.name, "args": call.args},
+                data={
+                    "tool": call.name,
+                    "args": call.args,
+                    "query": arg_preview,
+                    "reason": reason,
+                    "call_index": total_tool_calls,
+                },
             )
 
             call_start = time.time()
@@ -203,6 +228,7 @@ def run_investigation(
             run.tool_calls.append({
                 "name": call.name,
                 "args": call.args,
+                "reason": reason,
                 "ok": is_ok,
                 "ms": call_ms,
             })
@@ -237,7 +263,12 @@ def run_investigation(
                     kind="tool_result",
                     text=f"Evidence gathered from {call.name}",
                     detail=f"{new_evidence_count} results · {len(run.evidence)} total sources",
-                    data={"new_evidence": new_evidence_count, "tool": call.name},
+                    data={
+                        "tool": call.name,
+                        "new_evidence": new_evidence_count,
+                        "total_evidence": len(run.evidence),
+                        "ok": True,
+                    },
                 )
             elif not is_ok:
                 err_detail = result_data.get("detail") or result_data.get("message") or "Tool unavailable"
@@ -247,6 +278,12 @@ def run_investigation(
                     kind="note",
                     text=f"{call.name} unavailable",
                     detail=err_detail,
+                    data={
+                        "tool": call.name,
+                        "ok": False,
+                        "error": result_data.get("error"),
+                        "new_evidence": 0,
+                    },
                 )
             else:
                 emit(
@@ -254,6 +291,7 @@ def run_investigation(
                     kind="note",
                     text=f"No results for '{arg_preview}'",
                     detail="0 results returned",
+                    data={"tool": call.name, "ok": True, "new_evidence": 0},
                 )
 
             # Feed result into conversation
@@ -292,6 +330,7 @@ def run_investigation(
             kind="planning",
             text="Comparing and prioritizing gathered signals",
             detail=f"Synthesizing report from {len(run.evidence)} evidence sources",
+            data={"evidence": len(run.evidence)},
         )
         synthesis_prompt = (
             f"Investigation budget reached. Now synthesize your final intelligence report for '{objective}' "
@@ -340,6 +379,12 @@ def run_investigation(
         kind="final",
         text="Intelligence report ready",
         detail=f"{len(run.tool_calls)} tool calls · {len(run.evidence)} sources · {len(report.signals)} prioritized signals",
+        data={
+            "tool_calls": len(run.tool_calls),
+            "evidence": len(run.evidence),
+            "tools_used": sorted({tc["name"] for tc in run.tool_calls}),
+            "signals": len(report.signals),
+        },
     )
 
     return run

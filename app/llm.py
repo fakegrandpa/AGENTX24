@@ -26,6 +26,7 @@ OPERATING PRINCIPLES:
    - EMERGING / WATCH: Early-stage signals, nascent research trends, watch items.
 5. HONEST LIMITATIONS: If information on a topic is unavailable or a tool returns no results, explicitly state the limitation. Do NOT fabricate findings.
 6. NO RAW REASONING LEAKS: Provide clean, objective findings.
+7. TOOL JUSTIFICATION: Every time you call a tool you MUST populate its `reason` argument with one short sentence explaining why that tool is needed at this point in the investigation, referring to the objective and to what the evidence so far does or does not yet show. Choose the minimum set of tools that actually answers the objective and stop calling tools as soon as the evidence is sufficient. Never call every available tool by default, and never repeat a tool with a near-identical query.
 """
 
 

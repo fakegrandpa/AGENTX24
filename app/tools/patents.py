@@ -199,8 +199,12 @@ PATENT_SEARCH_SCHEMA = {
                 "type": "integer",
                 "description": "Maximum number of patent records to return (default 6, max 15).",
             },
+            "reason": {
+                "type": "string",
+                "description": "One short sentence stating why this tool is needed right now, given the investigation objective and the evidence already gathered.",
+            },
         },
-        "required": ["query"],
+        "required": ["query", "reason"],
     },
 }
 
