@@ -71,7 +71,14 @@ def resolve_model() -> tuple[str, bool, str]:
         if target_model in available_models or f"models/{target_model}" in [getattr(m, "name", "") for m in client.models.list()]:
             return (target_model, True, f"Model '{target_model}' verified and active")
 
-        # If exact match not in list, check for matching flash model
+        # If exact match not in list, check for matching flash-lite model first
+        lite_models = [m for m in available_models if "flash-lite" in m or "flash_lite" in m]
+        if lite_models:
+            chosen = lite_models[0]
+            logger.info("Target model '%s' not found, using flash-lite model '%s'", target_model, chosen)
+            return (chosen, True, f"Using available flash-lite model: {chosen}")
+
+        # If no lite model, check for matching flash model
         flash_models = [m for m in available_models if "flash" in m and "preview" not in m]
         if flash_models:
             chosen = flash_models[0]

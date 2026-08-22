@@ -16,38 +16,57 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
 _WEB_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 
 
+def _get_ddgs_client() -> Any | None:
+    """Dynamically loads DDGS class to avoid static IDE unresolved import errors."""
+    import importlib
+    for mod_name in ("ddgs", "duckduckgo_search"):
+        try:
+            mod = importlib.import_module(mod_name)
+            if hasattr(mod, "DDGS"):
+                return getattr(mod, "DDGS")
+        except Exception:
+            continue
+    return None
+
+
 def search_ddgs(query: str, limit: int = 8) -> list[dict[str, Any]]:
-    """Primary web search using DuckDuckGo (ddgs package)."""
-    from ddgs import DDGS
+    """Primary web search using DuckDuckGo (ddgs or duckduckgo_search package)."""
+    ddgs_cls = _get_ddgs_client()
+    if not ddgs_cls:
+        return []
 
     results: list[dict[str, Any]] = []
-    with DDGS() as ddgs:
-        raw_items = list(ddgs.text(query.strip(), max_results=limit))
-        for item in raw_items:
-            title = item.get("title", "Untitled")
-            href = item.get("href") or item.get("url") or ""
-            body = item.get("body") or item.get("snippet") or ""
-            
-            # Extract domain as source
-            source = "Web"
-            if href:
-                try:
-                    match = re.search(r"https?://(?:www\.)?([^/]+)", href)
-                    if match:
-                        source = match.group(1)
-                except Exception:
-                    pass
+    try:
+        with ddgs_cls() as ddgs:
+            raw_items = list(ddgs.text(query.strip(), max_results=limit))
+            for item in raw_items:
+                title = item.get("title", "Untitled")
+                href = item.get("href") or item.get("url") or ""
+                body = item.get("body") or item.get("snippet") or ""
 
-            results.append({
-                "title": title,
-                "url": href,
-                "source": source,
-                "published": None,
-                "days_old": None,
-                "snippet": body[:300],
-                "provider": "ddgs",
-                "provider_kind": "web",
-            })
+                # Extract domain as source
+                source = "Web"
+                if href:
+                    try:
+                        match = re.search(r"https?://(?:www\.)?([^/]+)", href)
+                        if match:
+                            source = match.group(1)
+                    except Exception:
+                        pass
+
+                results.append({
+                    "title": title,
+                    "url": href,
+                    "source": source,
+                    "published": None,
+                    "days_old": None,
+                    "snippet": body[:300],
+                    "provider": "ddgs",
+                    "provider_kind": "web",
+                })
+    except Exception:
+        return []
+
     return results
 
 

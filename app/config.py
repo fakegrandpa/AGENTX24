@@ -4,11 +4,11 @@ from dotenv import load_dotenv
 
 # Load .env file from workspace root if present
 ROOT_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(dotenv_path=ROOT_DIR / ".env")
+load_dotenv(dotenv_path=ROOT_DIR / ".env", override=True)
 
 # LLM Configuration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite").strip()
 
 # Agent Loop Budgets & Limits (P6 / BUILD1.md decisions)
 MAX_ITERATIONS = int(os.getenv("MAX_ITERATIONS", "8"))
