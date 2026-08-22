@@ -24,6 +24,9 @@ const state = {
 const $ = (id) => document.getElementById(id);
 
 document.addEventListener("DOMContentLoaded", () => {
+  if (window.Office && $("office-container")) {
+    Office.mount($("office-container"));
+  }
   loadHealth();
   wireForm();
   wireExamples();
@@ -166,6 +169,10 @@ async function startInvestigation(query) {
   state.activeFilter = "all";
   state.startedAt = Date.now();
 
+  if (window.Office) {
+    Office.reset();
+  }
+
   $("run-target-heading").textContent = query;
   $("run-id-label").textContent = "initializing…";
   $("timeline").innerHTML = "";
@@ -252,6 +259,14 @@ function openStream(runId) {
       processTelemetryEvent(ev);
       renderTimeline();
 
+      if (window.Office) {
+        try {
+          Office.handleEvent(ev);
+        } catch (oErr) {
+          console.error("Office event error (contained):", oErr);
+        }
+      }
+
       if (ev.kind === "tool_result" || ev.kind === "note") {
         refreshEvidence(runId);
       }
@@ -285,6 +300,9 @@ async function finalizeRun(runId) {
     if (run.status === "error") {
       showError(run.limitations[0] || "The investigation encountered an error.", "No verifiable evidence produced.");
       return;
+    }
+    if (window.Office) {
+      Office.hydrate(state.events);
     }
     renderReport(run);
   } catch (err) {
@@ -624,6 +642,8 @@ function renderReport(run) {
   $("trace-summary-tools").textContent = `${toolsUsed.length} external tools`;
   $("trace-summary-time").textContent = `${elapsed}s wall-clock`;
 
+  renderOfficeStrip(run);
+
   const validIds = new Set((run.evidence || []).map((e) => e.id));
 
   // Executive Summary
@@ -903,4 +923,33 @@ function showError(message, hint) {
   $("error-message").textContent = message || "An unexpected error occurred.";
   $("error-hint").textContent = hint || "";
   showScreen("screen-error");
+}
+
+function renderOfficeStrip(run) {
+  const strip = $("office-strip");
+  const rosterHost = $("office-strip-roster");
+  if (!strip || !rosterHost) return;
+  rosterHost.innerHTML = "";
+
+  const toolCalls = run.tool_calls || [];
+  const tools = ["news_search", "research_search", "web_search", "patent_search"];
+  const labels = { news_search: "News", research_search: "Research", web_search: "Web", patent_search: "Patents" };
+
+  tools.forEach((t) => {
+    const calls = toolCalls.filter((c) => c.name === t);
+    const pill = document.createElement("span");
+    pill.className = `strip-worker-pill ${calls.length > 0 ? "was-used" : ""}`;
+    pill.textContent = `${labels[t] || t}${calls.length > 0 ? ` ×${calls.length}` : ""}`;
+    rosterHost.appendChild(pill);
+  });
+
+  strip.onclick = () => {
+    const runScreen = $("screen-run");
+    if (runScreen) {
+      runScreen.hidden = !runScreen.hidden;
+      if (!runScreen.hidden) {
+        runScreen.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+  };
 }

@@ -4,8 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AGENTX24 — Autonomous Research & Competitor Intelligence Workspace</title>
-  <meta name="description" content="High-precision autonomous AI intelligence workspace for real-time competitor tracking, academic literature discovery, patent analysis, and verified intelligence synthesis.">
+  <meta name="description" content="Autonomous AI intelligence office that selects its own tools, gathers verifiable evidence, and produces prioritized intelligence briefs.">
   <link rel="stylesheet" href="/app.css">
+  <link rel="stylesheet" href="/static/office.css">
 </head>
 <body>
 
@@ -32,12 +33,12 @@
     <!-- ============================================ SCREEN 1 — IDLE / ARRIVAL -->
     <section class="screen" id="screen-arrival" aria-labelledby="arrival-title">
       <div class="arrival-layout">
-        <div class="arrival-meta-tag">INTELLIGENCE SYSTEM V2.4</div>
+        <div class="arrival-meta-tag">INTELLIGENCE WORKSPACE</div>
         
         <h1 class="arrival-title" id="arrival-title">What do you want to understand?</h1>
         
         <p class="arrival-description">
-          An autonomous intelligence agent that identifies knowledge gaps, dynamically queries peer-reviewed research, competitor news, patent databases, and web signals, assembling verified evidence into prioritized strategic briefs.
+          The autonomous agent decides which external sources it needs, gathers verified evidence, and reports only what it can cite. Enter a company, competitor, scientific field, industry trend, or patent area.
         </p>
 
         <form class="investigate-form" id="investigate-form" novalidate>
@@ -52,7 +53,7 @@
               type="text"
               id="target-input"
               name="target"
-              placeholder="e.g. NVIDIA competitive strategy & AI hardware moat"
+              placeholder="e.g. NVIDIA's competitive position in AI infrastructure"
               autocomplete="off"
               autofocus
               aria-label="Investigation objective"
@@ -68,7 +69,7 @@
           <div class="starter-fragments-section">
             <div class="fragments-label">SUGGESTED INVESTIGATION FRAGMENTS</div>
             <div class="fragments-grid" id="examples" aria-label="Example investigation queries">
-              <button type="button" class="fragment-chip" data-q="NVIDIA competitive strategy & AI hardware moat">
+              <button type="button" class="fragment-chip" data-q="NVIDIA's competitive position in AI infrastructure">
                 <span class="fragment-kind mono">COMPETITOR</span>
                 <span class="fragment-text">NVIDIA AI infrastructure moat & data center competition</span>
               </button>
@@ -80,7 +81,7 @@
                 <span class="fragment-kind mono">BIOTECH</span>
                 <span class="fragment-text">CRISPR base editing off-target safety & deaminase profiling</span>
               </button>
-              <button type="button" class="fragment-chip" data-q="Quantum error correction hardware patents & benchmarks">
+              <button type="button" class="fragment-chip" data-q="Quantum error correction patent landscape">
                 <span class="fragment-kind mono">PATENTS</span>
                 <span class="fragment-text">Quantum error correction patent landscape & fault-tolerant chips</span>
               </button>
@@ -132,6 +133,9 @@
           <button type="button" class="btn-quiet" id="btn-new-run">New Query</button>
         </div>
       </div>
+
+      <!-- Living Autonomous Intelligence Office Mount -->
+      <div id="office-container"></div>
 
       <!-- Current Agent State Banner (Active Reasoning Fragment) -->
       <div class="agent-focus-banner" id="agent-focus-banner">
@@ -229,6 +233,15 @@
         </div>
       </div>
 
+      <!-- Persistent Office Summary Strip -->
+      <div class="office-strip" id="office-strip" role="button" tabindex="0" aria-label="Toggle autonomous office overview">
+        <div class="office-strip-left">
+          <span class="office-strip-title">Autonomous Office</span>
+          <div class="office-strip-roster" id="office-strip-roster"></div>
+        </div>
+        <span class="btn-quiet" style="font-size: 11px; padding: 2px 8px;">Re-expand Office</span>
+      </div>
+
       <!-- Quick Trace Metadata Bar -->
       <div class="trace-overview-strip" id="trace-overview-strip">
         <div class="trace-meta-item">
@@ -247,11 +260,6 @@
           <span class="trace-meta-label">SPEED</span>
           <span class="trace-meta-val mono" id="trace-summary-time">—</span>
         </div>
-      </div>
-
-      <!-- Decision Trace Drawer (Embedded when toggled) -->
-      <div class="report-embedded-trace" id="report-embedded-trace" hidden>
-        <!-- Populated dynamically if requested -->
       </div>
 
       <!-- Editorial Report Document Canvas -->
@@ -334,6 +342,7 @@
 
   </main>
 
+  <script src="/static/office.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>
