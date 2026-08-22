@@ -142,9 +142,8 @@ D:\AGENTX24\
 │   ├── app.css               # Token-based design system (4 designed UI states)
 │   ├── app.js                # SSE client, live timeline, citation navigation
 │   └── index.html            # Semantic judge dashboard interface
-├── .env                      # Working runtime configuration with Gemini API key
 ├── .env.example              # Configuration template with placeholder keys
-├── .gitignore                # Stack-agnostic gitignore protecting caches & build junk
+├── .gitignore                # Stack-agnostic gitignore protecting secrets & caches
 ├── README.md                 # Complete project and run documentation
 └── requirements.txt          # Pinned dependency manifest
 ```
