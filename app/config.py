@@ -18,6 +18,10 @@ WALL_CLOCK = float(os.getenv("WALL_CLOCK", "120.0"))
 TOOL_RETRIES = int(os.getenv("TOOL_RETRIES", "1"))
 LLM_RETRIES = int(os.getenv("LLM_RETRIES", "2"))
 
+# Multi-Agent Configuration (Stage 3)
+ENABLE_CRITIC = os.getenv("ENABLE_CRITIC", "1").strip() not in ("0", "false", "False")
+MAX_CRITIQUES = int(os.getenv("MAX_CRITIQUES", "2"))
+
 # Optional Provider API Keys
 SEMANTIC_SCHOLAR_API_KEY = os.getenv("SEMANTIC_SCHOLAR_API_KEY", "").strip()
 NEWSDATA_API_KEY = os.getenv("NEWSDATA_API_KEY", "").strip()
@@ -60,6 +64,7 @@ def print_config_summary() -> None:
     print(f"Resolved Gemini Model     : {GEMINI_MODEL}")
     print(f"Loop Budgets              : Max Iterations={MAX_ITERATIONS}, Max Tool Calls={MAX_TOOL_CALLS}, Wall Clock={WALL_CLOCK}s")
     print(f"Tool Settings             : Timeout={TOOL_TIMEOUT}s, Retries={TOOL_RETRIES}")
+    print(f"Multi-Agent Settings      : Enable Critic={ENABLE_CRITIC}, Max Critiques={MAX_CRITIQUES}")
     print("Enabled Tool Providers    :")
     for tool, provs in get_enabled_providers().items():
         status = ", ".join(provs) if provs else "INACTIVE (no credentials)"

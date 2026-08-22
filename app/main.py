@@ -9,7 +9,8 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.agent import run_investigation
-from app.config import GEMINI_API_KEY, GEMINI_MODEL, get_enabled_providers
+from app.agents import AGENT_ROSTER
+from app.config import ENABLE_CRITIC, GEMINI_API_KEY, GEMINI_MODEL, get_enabled_providers
 from app.llm import resolve_model
 from app.models import Run, TelemetryEvent
 from app.store import (
@@ -77,6 +78,8 @@ def api_health() -> dict:
         "has_api_key": bool(os.getenv("GEMINI_API_KEY", "").strip() or GEMINI_API_KEY),
         "advertised_tools": advertised,
         "providers": get_enabled_providers(),
+        "agents": [AGENT_ROSTER[k] for k in ("investigator", "critic", "synthesist")],
+        "critic_enabled": ENABLE_CRITIC,
     }
 
 

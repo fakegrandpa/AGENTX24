@@ -4,6 +4,12 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
+class AgentRole(str, Enum):
+    INVESTIGATOR = "investigator"
+    CRITIC = "critic"
+    SYNTHESIST = "synthesist"
+
+
 class PhaseEnum(str, Enum):
     UNDERSTANDING_OBJECTIVE = "Understanding the objective"
     PLANNING_NEXT_STEP = "Planning the next step"
@@ -12,6 +18,9 @@ class PhaseEnum(str, Enum):
     SEARCHING_WEB = "Searching the web"
     SEARCHING_PATENTS = "Searching patent records"
     IDENTIFYING_GAPS = "Identifying knowledge gaps"
+    CRITIC_REVIEWING = "Reviewing evidence sufficiency"
+    CRITIQUE_RETURNED = "Critique returned"
+    SYNTHESIST_COMPOSING = "Composing intelligence report"
     EVIDENCE_FOUND = "Evidence found"
     NO_RESULTS = "No results for that angle"
     SOURCE_UNAVAILABLE = "Source unavailable"
@@ -19,6 +28,16 @@ class PhaseEnum(str, Enum):
     GENERATING_REPORT = "Generating intelligence report"
     COMPLETED = "Completed"
     ERROR = "Error encountered"
+
+
+class Critique(BaseModel):
+    seq: int
+    sufficient: bool
+    gaps: list[str] = Field(default_factory=list)
+    recommended_tool: str | None = None
+    recommended_query: str | None = None
+    confidence: float | None = None
+    note: str | None = None
 
 
 class Evidence(BaseModel):
@@ -43,6 +62,7 @@ class TelemetryEvent(BaseModel):
     phase: PhaseEnum
     kind: Literal["objective", "planning", "tool_selected", "tool_result", "note", "error", "final"]
     text: str
+    agent: AgentRole = AgentRole.INVESTIGATOR
     detail: str | None = None
     data: dict[str, Any] | None = None
 
@@ -81,5 +101,6 @@ class Run(BaseModel):
     telemetry: list[TelemetryEvent] = Field(default_factory=list)
     evidence: list[Evidence] = Field(default_factory=list)
     tool_calls: list[dict[str, Any]] = Field(default_factory=list)
+    critiques: list[Critique] = Field(default_factory=list)
     report: Report | None = None
     limitations: list[str] = Field(default_factory=list)

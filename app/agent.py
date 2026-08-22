@@ -5,14 +5,21 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 from google.genai import types
 
+from app.agents import (
+    CRITIC_INSTRUCTION,
+    SYNTHESIST_INSTRUCTION,
+    critique_evidence,
+)
 from app.config import (
+    ENABLE_CRITIC,
     GEMINI_API_KEY,
+    MAX_CRITIQUES,
     MAX_ITERATIONS,
     MAX_TOOL_CALLS,
     WALL_CLOCK,
 )
 from app.llm import LLMResponse, propose_next_step, resolve_model
-from app.models import Evidence, PhaseEnum, Run, TelemetryEvent
+from app.models import AgentRole, Critique, Evidence, PhaseEnum, Run, TelemetryEvent
 from app.report import assemble_report
 from app.tools import execute_tool, extract_reason, get_advertised_tools
 from app.tools.patents import is_patent_tool_available
@@ -54,7 +61,7 @@ def run_investigation(
     objective: str,
     emit_callback: Callable[[TelemetryEvent], None] | None = None,
 ) -> Run:
-    """Executes the autonomous investigation loop for a given objective.
+    """Executes the autonomous multi-agent investigation loop for a given objective.
     This function is trigger-agnostic (can be called from HTTP route, CLI, or scheduler).
     """
     run_id = f"run_{uuid.uuid4().hex[:10]}"
@@ -69,11 +76,19 @@ def run_investigation(
         telemetry=[],
         evidence=[],
         tool_calls=[],
+        critiques=[],
         report=None,
         limitations=[],
     )
 
-    def emit(phase: PhaseEnum, kind: str, text: str, detail: str | None = None, data: dict[str, Any] | None = None) -> None:
+    def emit(
+        phase: PhaseEnum,
+        kind: str,
+        text: str,
+        detail: str | None = None,
+        data: dict[str, Any] | None = None,
+        agent: AgentRole = AgentRole.INVESTIGATOR,
+    ) -> None:
         nonlocal seq_counter
         seq_counter += 1
         event = TelemetryEvent(
@@ -82,6 +97,7 @@ def run_investigation(
             phase=phase,
             kind=kind,  # type: ignore
             text=text,
+            agent=agent,
             detail=detail,
             data=data,
         )
@@ -102,6 +118,7 @@ def run_investigation(
             kind="error",
             text="Unable to start investigation",
             detail=preflight_msg,
+            agent=AgentRole.INVESTIGATOR,
         )
         run.finished_at = _iso_now()
         return run
@@ -111,6 +128,7 @@ def run_investigation(
         kind="objective",
         text=f"Target: {objective}",
         detail=f"Investigating {objective} across news, research, and web signals",
+        agent=AgentRole.INVESTIGATOR,
         data={
             "objective": objective,
             "available_tools": [t["name"] for t in get_advertised_tools()],
@@ -153,6 +171,7 @@ def run_investigation(
             kind="planning",
             text=f"Analyzing gathered findings (Step {iterations})",
             detail=None,
+            agent=AgentRole.INVESTIGATOR,
             data={"step": iterations},
         )
 
@@ -165,6 +184,7 @@ def run_investigation(
                 kind="error",
                 text="Reasoning step error",
                 detail=str(e),
+                agent=AgentRole.INVESTIGATOR,
             )
             break
 
@@ -176,7 +196,64 @@ def run_investigation(
 
         # Check if model made tool calls
         if not response.tool_calls:
-            # Model decided to deliver final report
+            # Investigator proposed completion. Gate with Evidence Critic if enabled and evidence exists
+            if ENABLE_CRITIC and run.evidence and len(run.critiques) < MAX_CRITIQUES:
+                seq_critique = len(run.critiques) + 1
+                emit(
+                    phase=PhaseEnum.CRITIC_REVIEWING,
+                    kind="planning",
+                    text="Reviewing evidence sufficiency",
+                    detail=f"{len(run.evidence)} evidence items under review",
+                    agent=AgentRole.CRITIC,
+                )
+                critique = critique_evidence(objective, run.evidence, run.tool_calls, seq=seq_critique)
+                run.critiques.append(critique)
+
+                first_gap = critique.gaps[0] if critique.gaps else (critique.note or "No specific gaps named")
+                emit(
+                    phase=PhaseEnum.CRITIQUE_RETURNED,
+                    kind="note",
+                    text="Sufficient" if critique.sufficient else "Insufficient evidence",
+                    detail=first_gap,
+                    data={
+                        "sufficient": critique.sufficient,
+                        "gaps": critique.gaps,
+                        "recommended_tool": critique.recommended_tool,
+                        "recommended_query": critique.recommended_query,
+                        "confidence": critique.confidence,
+                        "note": critique.note,
+                    },
+                    agent=AgentRole.CRITIC,
+                )
+
+                if not critique.sufficient:
+                    gap_summary = "; ".join(critique.gaps) if critique.gaps else "Key angles missing."
+                    emit(
+                        phase=PhaseEnum.IDENTIFYING_GAPS,
+                        kind="planning",
+                        text="Additional evidence required",
+                        detail=first_gap,
+                        data={
+                            "gaps": critique.gaps,
+                            "recommended_tool": critique.recommended_tool,
+                            "recommended_query": critique.recommended_query,
+                        },
+                        agent=AgentRole.CRITIC,
+                    )
+                    critique_instruction = (
+                        f"EVIDENCE CRITIQUE (Review #{seq_critique}): The gathered evidence is not yet sufficient to answer '{objective}'.\n"
+                        f"Identified Gaps: {gap_summary}\n"
+                    )
+                    if critique.recommended_tool or critique.recommended_query:
+                        critique_instruction += (
+                            f"Recommended Next Step: Use {critique.recommended_tool or 'appropriate tool'} "
+                            f"with query \"{critique.recommended_query or ''}\".\n"
+                        )
+                    critique_instruction += "Continue the investigation by selecting a tool to address these specific gaps."
+
+                    history.append(types.Content(role="user", parts=[types.Part.from_text(text=critique_instruction)]))
+                    continue
+
             final_synthesis_text = response.text
             break
 
@@ -191,18 +268,17 @@ def run_investigation(
             tool_phase = _tool_to_phase(call.name)
             arg_preview = call.args.get("query", "")
             call_detail = f"{call.name}(\"{arg_preview}\")" if arg_preview else f"{call.name}()"
-            # The agent's own justification for this call, supplied as a declared tool
-            # argument. Never invented here: if the model omitted it, it stays None.
+            # The agent's own justification for this call, supplied as a declared tool argument.
             reason = extract_reason(call.args)
 
-            # A follow-up tool call made while evidence already exists IS the agent
-            # acting on a knowledge gap. Surfaced using the model's own reason only.
+            # A follow-up tool call made while evidence already exists IS the agent acting on a knowledge gap.
             if run.evidence and iterations > 1:
                 emit(
                     phase=PhaseEnum.IDENTIFYING_GAPS,
                     kind="planning",
                     text="Additional evidence required",
                     detail=reason,
+                    agent=AgentRole.INVESTIGATOR,
                     data={"step": iterations, "next_tool": call.name, "reason": reason},
                 )
 
@@ -211,6 +287,7 @@ def run_investigation(
                 kind="tool_selected",
                 text=f"Selected {call.name}",
                 detail=call_detail,
+                agent=AgentRole.INVESTIGATOR,
                 data={
                     "tool": call.name,
                     "args": call.args,
@@ -263,6 +340,7 @@ def run_investigation(
                     kind="tool_result",
                     text=f"Evidence gathered from {call.name}",
                     detail=f"{new_evidence_count} results · {len(run.evidence)} total sources",
+                    agent=AgentRole.INVESTIGATOR,
                     data={
                         "tool": call.name,
                         "new_evidence": new_evidence_count,
@@ -278,6 +356,7 @@ def run_investigation(
                     kind="note",
                     text=f"{call.name} unavailable",
                     detail=err_detail,
+                    agent=AgentRole.INVESTIGATOR,
                     data={
                         "tool": call.name,
                         "ok": False,
@@ -291,11 +370,11 @@ def run_investigation(
                     kind="note",
                     text=f"No results for '{arg_preview}'",
                     detail="0 results returned",
+                    agent=AgentRole.INVESTIGATOR,
                     data={"tool": call.name, "ok": True, "new_evidence": 0},
                 )
 
             # Feed result into conversation
-            # Replace actual result objects with Evidence IDs in tool response so LLM can cite accurately
             tool_response_payload = {
                 "status": "success" if is_ok else "error",
                 "results": [
@@ -322,36 +401,40 @@ def run_investigation(
         if function_response_parts:
             history.append(types.Content(role="user", parts=function_response_parts))
 
-    # If loop ended without synthesis (e.g. reached max steps), perform forced final synthesis
-    synthesis_from_model = bool(final_synthesis_text)
-    if not final_synthesis_text:
-        emit(
-            phase=PhaseEnum.COMPARING_EVIDENCE,
-            kind="planning",
-            text="Comparing and prioritizing gathered signals",
-            detail=f"Synthesizing report from {len(run.evidence)} evidence sources",
-            data={"evidence": len(run.evidence)},
+    # Route the final report through the Report Synthesist on both accepted completion and budget exhaustion
+    emit(
+        phase=PhaseEnum.SYNTHESIST_COMPOSING,
+        kind="final",
+        text="Composing prioritized intelligence report",
+        detail=f"Synthesizing structured dossier from {len(run.evidence)} verified sources",
+        agent=AgentRole.SYNTHESIST,
+        data={"evidence": len(run.evidence)},
+    )
+    synthesis_prompt = (
+        f"Investigation complete. Now synthesize your final intelligence report for '{objective}' "
+        f"using only the {len(run.evidence)} gathered evidence sources. "
+        "Structure your report strictly with the required sections, cite claims with [E1], [E2] etc., and prioritize signals."
+    )
+    history.append(types.Content(role="user", parts=[types.Part.from_text(text=synthesis_prompt)]))
+    try:
+        synth_resp = propose_next_step(
+            contents=history,
+            tools_schema=None,
+            system_instruction=SYNTHESIST_INSTRUCTION,
         )
-        synthesis_prompt = (
-            f"Investigation budget reached. Now synthesize your final intelligence report for '{objective}' "
-            f"using only the {len(run.evidence)} gathered evidence sources. "
-            "Cite all claims with [E1], [E2] etc. Prioritize into HIGH PRIORITY, IMPORTANT, and EMERGING tiers."
-        )
-        history.append(types.Content(role="user", parts=[types.Part.from_text(text=synthesis_prompt)]))
-        try:
-            synth_resp = propose_next_step(contents=history, tools_schema=None)
-            final_synthesis_text = synth_resp.text
-            synthesis_from_model = bool(final_synthesis_text)
-        except Exception as e:
-            run.limitations.append(f"Forced synthesis fallback error: {e}")
-            final_synthesis_text = ""
-            synthesis_from_model = False
+        final_synthesis_text = synth_resp.text
+        synthesis_from_model = bool(final_synthesis_text)
+    except Exception as e:
+        run.limitations.append(f"Report synthesis error: {e}")
+        final_synthesis_text = final_synthesis_text or ""
+        synthesis_from_model = bool(final_synthesis_text)
 
     emit(
         phase=PhaseEnum.GENERATING_REPORT,
         kind="final",
         text="Generating prioritized intelligence report",
         detail="Structuring actionable findings, validating citations, and rendering sources",
+        agent=AgentRole.SYNTHESIST,
     )
 
     if not synthesis_from_model:
@@ -378,12 +461,14 @@ def run_investigation(
         phase=PhaseEnum.COMPLETED,
         kind="final",
         text="Intelligence report ready",
-        detail=f"{len(run.tool_calls)} tool calls · {len(run.evidence)} sources · {len(report.signals)} prioritized signals",
+        detail=f"{len(run.tool_calls)} tool calls · {len(run.evidence)} sources · {len(report.signals)} prioritized signals · {len(run.critiques)} critiques",
+        agent=AgentRole.SYNTHESIST,
         data={
             "tool_calls": len(run.tool_calls),
             "evidence": len(run.evidence),
             "tools_used": sorted({tc["name"] for tc in run.tool_calls}),
             "signals": len(report.signals),
+            "critiques": len(run.critiques),
         },
     )
 
@@ -396,7 +481,8 @@ if __name__ == "__main__":
 
     def cli_telemetry_printer(ev: TelemetryEvent) -> None:
         det = f" -> {ev.detail}" if ev.detail else ""
-        print(f"[{ev.seq:02d} | {ev.phase.value}] {ev.text}{det}")
+        agent_label = f"[{ev.agent.value.upper()}]" if hasattr(ev, "agent") and ev.agent else "[INVESTIGATOR]"
+        print(f"[{ev.seq:02d} | {agent_label} | {ev.phase.value}] {ev.text}{det}")
 
     result_run = run_investigation(test_target, emit_callback=cli_telemetry_printer)
 
@@ -405,6 +491,11 @@ if __name__ == "__main__":
     print(f"Status     : {result_run.status}")
     print(f"Tool Calls : {len(result_run.tool_calls)}")
     print(f"Evidence   : {len(result_run.evidence)} items")
+    print(f"Critiques  : {len(result_run.critiques)}")
+    for c in result_run.critiques:
+        verdict = "Sufficient" if c.sufficient else "Insufficient"
+        gaps = f" | Gaps: {c.gaps}" if c.gaps else ""
+        print(f"  - Review #{c.seq}: {verdict}{gaps}")
     if result_run.report:
         print(f"\n--- SUMMARY ---\n{result_run.report.summary}")
         print(f"\n--- SIGNALS ({len(result_run.report.signals)}) ---")
