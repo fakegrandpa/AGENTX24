@@ -489,3 +489,45 @@ python -m uvicorn app.main:app --port 8000
 - **Patent Search**: Inactive in Stage 0 by design (awaits valid EPO OPS credentials; honest limitation note rendered in coverage block).
 - **API Key Dependency**: Real model turns require `GEMINI_API_KEY` in `.env`. Gracefully handled with preflight error telemetry and calm troubleshooting card when unconfigured.
 - **Persistence**: In-memory store only (`_RUNS` dict in `app/store.py`), adhering to MVP simplicity.
+
+---
+
+### 5. Post-Stage-0 Technical Audit (append-only, code-verified)
+
+Full-repository audit performed against the running system, not the documents. Live end-to-end runs executed with the configured Gemini key on `gemini-3.5-flash-lite`.
+
+**Verified working (observed, not assumed)**
+- Imports clean; installed packages match `requirements.txt` exactly (7 pinned deps).
+- Live data: `news_search` (Google News RSS, ISO dates, `days_old` correct), `research_search` (OpenAlex, real DOIs + authors), `web_search` (DDGS, real publisher URLs), `patent_search` (real Google Patents records).
+- `/api/health`, `/`, `/app.css`, `/app.js` all 200. SSE streamed promptly; max inter-event gap equalled the final synthesis turn only (7-8s), never a stall.
+- **Dynamic tool selection confirmed across four targets** with four different tool paths:
+  `NVIDIA` -> news, news · `CRISPR base editing off-target safety` -> research, news, news ·
+  `solid-state battery commercialization` -> news, research, web ·
+  `NVIDIA GPU interconnect patent activity` -> patent, web, news(0 results), web.
+  The agent adapted after an empty result rather than following a script.
+- Anti-fabrication: zero citation IDs outside the evidence store, zero model-authored URLs in prose, zero thought-content in telemetry across all runs.
+- Budget safety: with `MAX_ITERATIONS=1` the run terminated via forced synthesis and still produced a cited report.
+
+**CRITICAL defects found and fixed**
+1. `app/report.py` section parsing was destroyed by a `\*\*` terminator in the lookahead: any section whose first bullet began with bold text (i.e. almost all of them) parsed as empty. Only 1 of 5 sections survived. Replaced the three fragile regexes with a single line-anchored heading splitter (`split_heading_blocks`). Sections recovered 1/5 -> 4/5 on the same model output.
+2. Citation validation only matched single `[E4]` markers, so grouped citations (`[E19, E20]`) were **neither validated nor rendered** - both an evidence-integrity loophole and the reason most signals displayed with no citations. Now parses grouped forms, validates each ID, keeps the valid ones and logs the stripped ones.
+3. `next_actions` fell back to two canned template sentences presented as agent recommendations. Removed; real parsed actions now appear (3-4 per run), and an honest limitation is recorded if none parse.
+4. Fallback signals invented `high` priority tiers by evidence position. Removed the fabricated ranking; the degraded path now lists most-recent verified evidence at the lowest tier and states plainly that these are not agent-ranked.
+5. Signal headlines were mangled (bold-wrapped labels defeated the headline/detail split, producing mid-word truncation). Emphasis is now stripped before splitting.
+
+**IMPORTANT fixes**
+6. `resolve_model()` ran a `ListModels` round trip on every agent turn and every health check (twice per call). Now cached per process - directly relevant to the free-tier quota pressure that motivated the flash-lite switch.
+7. **Patent capability now real and credential-free.** EPO OPS returns `403` without OAuth and PatentsView no longer resolves, so `patent_search` was entirely inactive despite patents being a named requirement. Added a verified Google-Patents-via-web provider (reuses the installed `ddgs`), returning real publication numbers and URLs, honestly labelled as web-indexed discovery rather than a patent-office query. The agent selected it unprompted and first for patent-oriented objectives. The EPO path is preferred when credentials exist and now raises instead of reporting false success with zero results.
+8. The dashboard converted any recoverable telemetry error into a full-screen failure, discarding partial evidence. Recoverable problems now render as an amber timeline entry; only the final run status can trigger the error screen.
+9. Query strings were interpolated unencoded, so targets containing `&` (AT&T, P&G) would have broken the request. All providers now pass `params=`.
+10. OpenAlex relevance-only search returned 2018-2020 classics (2600+ days old) for "emerging research". Added a ~3-year recency window with an automatic unfiltered retry; arXiv fallback now sorts newest-first.
+11. Model prose is scrubbed of any URL and of raw markdown markers; all links come from the evidence store only.
+12. A run producing neither evidence nor model synthesis is now `status: error` instead of a misleading `done`.
+13. `.env.example` documents the budget variables the code actually reads; `.gitignore` now excludes generated `*.zip` submission archives.
+
+**Known limitations after the audit**
+- Evidence is not de-duplicated across tool calls, so repeated queries can list the same article twice.
+- `corroboration` and `days_old` are computed but not fed to the model, so prioritization inputs remain the model's judgement plus publication dates.
+- Google News RSS returns redirect URLs (`news.google.com/rss/articles/...`), which resolve correctly but are opaque, and make domain-based corroboration meaningless for news.
+- `store.broadcast_event` calls `put_nowait` on an asyncio queue from the background worker thread. Observed reliable across all audit runs; left unchanged as it is not a reproduced failure.
+- EPO OPS response parsing is still unimplemented.

@@ -52,7 +52,9 @@ def _calculate_days_old(pub_date_str: str | None) -> int | None:
 def search_google_news_rss(query: str, limit: int = 10) -> list[dict[str, Any]]:
     """Searches Google News RSS and returns parsed items."""
     clean_query = query.strip()
-    url = f"https://news.google.com/rss/search?q={clean_query}&hl=en-US&gl=US&ceid=US:en"
+    url = "https://news.google.com/rss/search"
+    # Passed as params so targets containing '&' (e.g. "AT&T", "P&G") are encoded correctly
+    params = {"q": clean_query, "hl": "en-US", "gl": "US", "ceid": "US:en"}
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -62,7 +64,7 @@ def search_google_news_rss(query: str, limit: int = 10) -> list[dict[str, Any]]:
     for attempt in range(TOOL_RETRIES + 1):
         try:
             with httpx.Client(timeout=TOOL_TIMEOUT, follow_redirects=True) as client:
-                resp = client.get(url, headers=headers)
+                resp = client.get(url, params=params, headers=headers)
                 resp.raise_for_status()
 
             root = ET.fromstring(resp.text)
@@ -117,9 +119,10 @@ def search_newsdata_io(query: str, limit: int = 5) -> list[dict[str, Any]]:
     """Optional search via NewsData.io if API key is provided."""
     if not NEWSDATA_API_KEY:
         return []
-    url = f"https://newsdata.io/api/1/news?apikey={NEWSDATA_API_KEY}&q={query}&language=en"
+    url = "https://newsdata.io/api/1/news"
+    params = {"apikey": NEWSDATA_API_KEY, "q": query, "language": "en"}
     with httpx.Client(timeout=TOOL_TIMEOUT) as client:
-        resp = client.get(url)
+        resp = client.get(url, params=params)
         resp.raise_for_status()
         data = resp.json()
         articles = data.get("results", [])

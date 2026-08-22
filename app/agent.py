@@ -35,7 +35,19 @@ def _tool_to_phase(tool_name: str) -> PhaseEnum:
         return PhaseEnum.SEARCHING_RESEARCH
     elif tool_name == "web_search":
         return PhaseEnum.SEARCHING_WEB
+    elif tool_name == "patent_search":
+        return PhaseEnum.SEARCHING_PATENTS
     return PhaseEnum.PLANNING_NEXT_STEP
+
+
+def _tool_to_provider_kind(tool_name: str) -> str:
+    if tool_name == "research_search":
+        return "research"
+    if tool_name == "web_search":
+        return "web"
+    if tool_name == "patent_search":
+        return "patent"
+    return "news"
 
 
 def run_investigation(
@@ -206,7 +218,7 @@ def run_investigation(
                         id=ev_id,
                         tool=call.name,
                         provider=item.get("provider", call.name),
-                        provider_kind=item.get("provider_kind", "news"),
+                        provider_kind=item.get("provider_kind", _tool_to_provider_kind(call.name)),
                         source=item.get("source", "Unknown"),
                         title=item.get("title", "Untitled"),
                         url=item.get("url", ""),
@@ -273,6 +285,7 @@ def run_investigation(
             history.append(types.Content(role="user", parts=function_response_parts))
 
     # If loop ended without synthesis (e.g. reached max steps), perform forced final synthesis
+    synthesis_from_model = bool(final_synthesis_text)
     if not final_synthesis_text:
         emit(
             phase=PhaseEnum.COMPARING_EVIDENCE,
@@ -289,9 +302,11 @@ def run_investigation(
         try:
             synth_resp = propose_next_step(contents=history, tools_schema=None)
             final_synthesis_text = synth_resp.text
+            synthesis_from_model = bool(final_synthesis_text)
         except Exception as e:
             run.limitations.append(f"Forced synthesis fallback error: {e}")
-            final_synthesis_text = f"Executive Summary for {objective}\n\nGathered {len(run.evidence)} evidence sources across recent news and literature."
+            final_synthesis_text = ""
+            synthesis_from_model = False
 
     emit(
         phase=PhaseEnum.GENERATING_REPORT,
@@ -299,6 +314,12 @@ def run_investigation(
         text="Generating prioritized intelligence report",
         detail="Structuring actionable findings, validating citations, and rendering sources",
     )
+
+    if not synthesis_from_model:
+        run.limitations.append(
+            "The reasoning model did not return a final synthesis for this run; "
+            "only the verified evidence below is trustworthy."
+        )
 
     # Assemble structured report
     report = assemble_report(
@@ -310,7 +331,8 @@ def run_investigation(
         has_patents=is_patent_tool_available(),
     )
     run.report = report
-    run.status = "done"
+    # A run that produced neither evidence nor model synthesis is a failure, not a success
+    run.status = "done" if (run.evidence or synthesis_from_model) else "error"
     run.finished_at = _iso_now()
 
     emit(

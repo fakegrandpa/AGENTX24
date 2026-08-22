@@ -41,6 +41,15 @@ def get_enabled_providers() -> dict[str, list[str]]:
     if EPO_OPS_KEY and EPO_OPS_SECRET:
         providers["patent_search"].append("EPO OPS")
 
+    # Lazy import: the patent adapter imports this module, so this must stay function-local.
+    try:
+        from app.tools.patents import has_web_patent_provider
+
+        if has_web_patent_provider():
+            providers["patent_search"].append("Google Patents (web-indexed)")
+    except Exception:
+        pass
+
     return providers
 
 

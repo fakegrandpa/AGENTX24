@@ -4,6 +4,65 @@ from urllib.parse import urlparse
 
 from app.models import Evidence, Report, ReportSections, Signal
 
+# A markdown heading is the ONLY thing allowed to terminate a section body.
+# It must sit alone on its line and carry a '#' or '**' marker, so inline bold
+# inside a bullet (e.g. "* **MaxCyte Expansion:** ...") can never end a section.
+_HEADING_LINE_RE = re.compile(
+    r"^[ \t]*(?:(?:#{1,6})[ \t]*|(?:\*\*|__))(?P<name>[^\n]{2,90}?)(?:\*\*|__)?[ \t]*:?[ \t]*$",
+    re.MULTILINE,
+)
+
+# Citations may be single ("[E4]") or grouped ("[E19, E20]", "[E1; E3]", "[E1 and E2]").
+_CITATION_BLOCK_RE = re.compile(
+    r"\[\s*(E\d+(?:\s*(?:,|;|/|&|and)\s*E\d+)*)\s*\]",
+    re.IGNORECASE,
+)
+_EVIDENCE_ID_RE = re.compile(r"E\d+", re.IGNORECASE)
+_URL_IN_PROSE_RE = re.compile(r"https?://\S+")
+_EMPHASIS_RE = re.compile(r"\*\*|__|`")
+
+
+def _normalize_heading(raw: str) -> str:
+    return re.sub(r"[\*#:_]+", " ", raw).strip().upper()
+
+
+def split_heading_blocks(text: str) -> list[tuple[str, str]]:
+    """Splits the synthesis text into ordered (normalized heading, body) blocks."""
+    blocks: list[tuple[str, str]] = []
+    matches = list(_HEADING_LINE_RE.finditer(text or ""))
+    for i, m in enumerate(matches):
+        name = _normalize_heading(m.group("name"))
+        if not name:
+            continue
+        body_start = m.end()
+        body_end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        body = text[body_start:body_end].strip()
+        # Drop horizontal rules used as separators between sections
+        body = re.sub(r"^\s*(?:-{3,}|_{3,}|\*{3,})\s*$", "", body, flags=re.MULTILINE).strip()
+        blocks.append((name, body))
+    return blocks
+
+
+def find_block(blocks: list[tuple[str, str]], *aliases: str) -> str | None:
+    """Returns the body of the first block whose heading matches any alias."""
+    for alias in aliases:
+        needle = alias.upper()
+        for name, body in blocks:
+            if needle in name and body:
+                return body
+    return None
+
+
+def split_bullets(body: str) -> list[str]:
+    """Splits a section body into bullet/numbered items (or paragraphs if unlisted)."""
+    if not body:
+        return []
+    items = re.split(r"(?:^|\n)[ \t]*(?:[-*\u2022]|\d+[\.\)])[ \t]+", body)
+    cleaned = [i.strip() for i in items if i and i.strip()]
+    if len(cleaned) <= 1:
+        cleaned = [p.strip() for p in re.split(r"\n{2,}", body) if p.strip()]
+    return cleaned
+
 
 def compute_corroboration(evidence_list: list[Evidence]) -> None:
     """Computes corroboration count for each evidence item based on shared domain or title keywords."""
@@ -34,65 +93,88 @@ def extract_and_validate_citations(
     valid_ids: set[str],
     limitations: list[str],
 ) -> tuple[str, list[str]]:
-    """Extracts all [En] citations, validates them against valid_ids, and strips unresolvable ones."""
-    found_citations: list[str] = []
-    
-    def replace_citation(match: re.Match[str]) -> str:
-        cid = match.group(1).upper()
-        if cid in valid_ids:
-            if cid not in found_citations:
-                found_citations.append(cid)
-            return f"[{cid}]"
-        else:
-            limitations.append(f"Stripped unverified citation marker [{cid}] (not in verified evidence)")
-            return ""
+    """Validates every [En] marker (single or grouped) against the real evidence store,
+    strips unresolvable ones, and removes any model-authored URL from the prose.
 
-    cleaned_text = re.sub(r"\[(E\d+)\]", replace_citation, text, flags=re.IGNORECASE)
-    # Clean up double spaces or dangling punctuation from removed citations
-    cleaned_text = re.sub(r"\s{2,}", " ", cleaned_text)
-    return cleaned_text, found_citations
+    Only the evidence store may contribute links to the report, so a hallucinated
+    URL or evidence ID can never reach the rendered output.
+    """
+    found_citations: list[str] = []
+
+    def replace_citation(match: re.Match[str]) -> str:
+        kept: list[str] = []
+        for raw_id in _EVIDENCE_ID_RE.findall(match.group(1)):
+            cid = raw_id.upper()
+            if cid in valid_ids:
+                if cid not in kept:
+                    kept.append(cid)
+                if cid not in found_citations:
+                    found_citations.append(cid)
+            else:
+                limitations.append(
+                    f"Stripped unverified citation marker [{cid}] (not in verified evidence)"
+                )
+        return " ".join(f"[{c}]" for c in kept)
+
+    cleaned_text = _CITATION_BLOCK_RE.sub(replace_citation, text or "")
+
+    if _URL_IN_PROSE_RE.search(cleaned_text):
+        limitations.append(
+            "Removed a model-authored link from the analysis text; only verified evidence URLs are listed under Sources"
+        )
+        cleaned_text = _URL_IN_PROSE_RE.sub("", cleaned_text)
+
+    # Drop bold/code markers so raw markdown never reaches the judge-facing UI
+    cleaned_text = _EMPHASIS_RE.sub("", cleaned_text)
+
+    # Clean up double spaces or dangling separators left by removed citations
+    cleaned_text = re.sub(r"[ \t]{2,}", " ", cleaned_text)
+    cleaned_text = re.sub(r"\(\s*\)|\[\s*\]", "", cleaned_text)
+    return cleaned_text.strip(), found_citations
+
+
+def _split_headline_detail(line: str) -> tuple[str, str]:
+    """Separates a bullet's bold/lead label from its explanatory text."""
+    plain = _EMPHASIS_RE.sub("", line).strip()
+    plain = re.sub(r"^[-*\u2022\d\.\)\s]+", "", plain).strip()
+
+    parts = re.split(r":\s+|\s+\u2013\s+|\s+\u2014\s+|\s+-\s+", plain, maxsplit=1)
+    headline = parts[0].strip().rstrip(":").strip()
+    detail = parts[1].strip() if len(parts) > 1 else plain
+
+    if not headline:
+        headline = plain
+    if len(headline) > 120:
+        headline = headline[:117].rstrip() + "..."
+    return headline, detail
 
 
 def parse_signals_from_text(
-    text: str,
+    blocks: list[tuple[str, str]],
     valid_ids: set[str],
     limitations: list[str],
 ) -> list[Signal]:
-    """Parses prioritized signal blocks from LLM synthesis text."""
+    """Parses prioritized signal tiers from the model's headed sections.
+    Tiers are the model's own judgement; empty tiers are omitted, never padded.
+    """
     signals: list[Signal] = []
-
-    tier_patterns = [
-        ("high", r"(?:###\s*|\*\*|#+\s*)HIGH PRIORITY(?:\s*SIGNALS)?[:\*#\s]*\n(.*?)(?=(?:###\s*|\*\*|#+\s*)(?:HIGH PRIORITY|IMPORTANT|EMERGING|KEY RESEARCH|COMPETITOR|RECENT|PATENT|WHY THIS MATTERS|RECOMMENDED)|\Z)"),
-        ("important", r"(?:###\s*|\*\*|#+\s*)IMPORTANT(?:\s*SIGNALS)?[:\*#\s]*\n(.*?)(?=(?:###\s*|\*\*|#+\s*)(?:HIGH PRIORITY|IMPORTANT|EMERGING|KEY RESEARCH|COMPETITOR|RECENT|PATENT|WHY THIS MATTERS|RECOMMENDED)|\Z)"),
-        ("emerging", r"(?:###\s*|\*\*|#+\s*)EMERGING(?:\s*(?:/|AND)?\s*WATCH)?(?:\s*SIGNALS)?[:\*#\s]*\n(.*?)(?=(?:###\s*|\*\*|#+\s*)(?:HIGH PRIORITY|IMPORTANT|EMERGING|KEY RESEARCH|COMPETITOR|RECENT|PATENT|WHY THIS MATTERS|RECOMMENDED)|\Z)"),
+    tier_aliases: list[tuple[str, tuple[str, ...]]] = [
+        ("high", ("HIGH PRIORITY",)),
+        ("important", ("IMPORTANT DEVELOPMENT", "IMPORTANT SIGNAL", "IMPORTANT")),
+        ("emerging", ("EMERGING", "WATCH SIGNAL")),
     ]
 
-    for tier_name, pattern in tier_patterns:
-        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-        if not match:
+    for tier_name, aliases in tier_aliases:
+        body = find_block(blocks, *aliases)
+        if not body:
             continue
-        tier_content = match.group(1).strip()
-        
-        # Split by bullet points or numbered items
-        lines = [l.strip() for l in re.split(r"\n+(?:[-*•]|\d+\.)\s+", tier_content) if l.strip()]
-        for line in lines:
-            if len(line) < 10 or line.lower().startswith("signals"):
+        for line in split_bullets(body):
+            if len(line) < 10:
                 continue
             cleaned_line, cits = extract_and_validate_citations(line, valid_ids, limitations)
             if not cleaned_line:
                 continue
-
-            # Split headline and detail
-            parts = re.split(r":\s+|\s+–\s+|\s+-\s+", cleaned_line, maxsplit=1)
-            raw_h = parts[0].replace("**", "").replace("#", "").strip()
-            headline = re.sub(r"^[-*•\d\.\s]+", "", raw_h).strip() or raw_h
-            detail = parts[1].strip() if len(parts) > 1 else cleaned_line
-            detail = re.sub(r"^[-*•\d\.\s]+", "", detail).strip() or detail
-
-            if len(headline) > 120:
-                headline = headline[:117] + "..."
-
-            # Only include signal if it has genuine content
+            headline, detail = _split_headline_detail(cleaned_line)
             signals.append(Signal(
                 tier=tier_name,  # type: ignore
                 headline=headline,
@@ -104,20 +186,16 @@ def parse_signals_from_text(
 
 
 def parse_section_content(
-    section_name: str,
-    text: str,
+    blocks: list[tuple[str, str]],
+    aliases: tuple[str, ...],
     valid_ids: set[str],
     limitations: list[str],
 ) -> str | None:
-    """Extracts a named section from the LLM response text."""
-    pattern = rf"(?:###\s*|\*\*|#+\s*){re.escape(section_name)}[:\*#\s]*\n(.*?)(?=(?:###\s*|\*\*|#+\s*)[A-Z]|\Z)"
-    match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-    if not match:
+    """Returns a validated section body, or None so the section is omitted entirely."""
+    body = find_block(blocks, *aliases)
+    if not body or len(body) < 15:
         return None
-    content = match.group(1).strip()
-    if not content or len(content) < 15:
-        return None
-    cleaned, _ = extract_and_validate_citations(content, valid_ids, limitations)
+    cleaned, _ = extract_and_validate_citations(body, valid_ids, limitations)
     return cleaned if cleaned.strip() else None
 
 
@@ -136,62 +214,71 @@ def assemble_report(
     # 1. Compute corroboration facts
     compute_corroboration(evidence_list)
 
-    # 2. Extract summary
-    summary = ""
-    summary_match = re.search(
-        r"(?:###\s*|\*\*|#+\s*)?(?:INVESTIGATION SUMMARY|EXECUTIVE SUMMARY)[:\*#\s]*\n(.*?)(?=(?:###\s*|\*\*|#+\s*)[A-Z]|\Z)",
-        raw_synthesis_text,
-        re.IGNORECASE | re.DOTALL,
-    )
-    if summary_match and summary_match.group(1).strip():
-        cleaned_sum, _ = extract_and_validate_citations(summary_match.group(1).strip(), valid_ids, limitations)
-        summary = cleaned_sum
-    else:
-        # Fallback: take first 2 paragraphs
-        paragraphs = [p.strip() for p in raw_synthesis_text.split("\n\n") if p.strip() and not p.strip().startswith("#")]
-        if paragraphs:
-            cleaned_p, _ = extract_and_validate_citations(paragraphs[0], valid_ids, limitations)
-            summary = cleaned_p
-        else:
-            summary = f"Autonomous investigation of '{target}' completed with {len(evidence_list)} evidence sources gathered."
+    # 2. Split the synthesis into headed blocks once (single source of parsing truth)
+    blocks = split_heading_blocks(raw_synthesis_text or "")
 
-    # 3. Extract Prioritized Signals
-    signals = parse_signals_from_text(raw_synthesis_text, valid_ids, limitations)
-    
-    # If no structured signals matched, generate fallback signals from top evidence
+    # 3. Extract summary
+    summary = ""
+    summary_body = find_block(blocks, "INVESTIGATION SUMMARY", "EXECUTIVE SUMMARY", "SUMMARY")
+    if summary_body:
+        summary, _ = extract_and_validate_citations(summary_body, valid_ids, limitations)
+    if not summary:
+        # Fallback: first substantive paragraph of the model's own text
+        paragraphs = [
+            p.strip()
+            for p in (raw_synthesis_text or "").split("\n\n")
+            if p.strip() and not p.strip().startswith("#")
+        ]
+        if paragraphs:
+            summary, _ = extract_and_validate_citations(paragraphs[0], valid_ids, limitations)
+    if not summary:
+        summary = (
+            f"Autonomous investigation of '{target}' completed with "
+            f"{len(evidence_list)} verified evidence sources gathered."
+        )
+
+    # 4. Extract Prioritized Signals (model-assigned tiers only)
+    signals = parse_signals_from_text(blocks, valid_ids, limitations)
+
+    # If the model's tier headings could not be parsed, fall back to listing the most
+    # recent verified evidence WITHOUT inventing a priority level, and say so plainly.
     if not signals and evidence_list:
-        for ev in evidence_list[:3]:
+        ranked = sorted(
+            evidence_list,
+            key=lambda e: (e.days_old if e.days_old is not None else 10_000),
+        )[:3]
+        for ev in ranked:
             signals.append(Signal(
-                tier="high" if ev.provider_kind == "research" else "important",
-                headline=ev.title[:90],
-                detail=f"{ev.snippet} [{ev.id}]",
+                tier="emerging",
+                headline=ev.title[:120],
+                detail=f"{ev.snippet} [{ev.id}]".strip(),
                 citations=[ev.id],
             ))
+        limitations.append(
+            "Prioritized signal extraction failed: the items listed are the most recent "
+            "verified evidence records, not agent-ranked signals."
+        )
 
-    # 4. Extract Adaptive Sections (None if no evidence or unpopulated)
-    has_research_evidence = any(e.provider_kind == "research" for e in evidence_list)
-    has_news_evidence = any(e.provider_kind == "news" for e in evidence_list)
+    # 5. Extract Adaptive Sections (None => the section is omitted, never rendered empty)
     has_patent_evidence = any(e.provider_kind == "patent" for e in evidence_list)
 
-    research_sec = parse_section_content("KEY RESEARCH DEVELOPMENTS", raw_synthesis_text, valid_ids, limitations)
-    if not research_sec and has_research_evidence:
-        research_sec = parse_section_content("RESEARCH DEVELOPMENTS", raw_synthesis_text, valid_ids, limitations)
-
-    competitor_sec = parse_section_content("COMPETITOR / INDUSTRY ACTIVITY", raw_synthesis_text, valid_ids, limitations)
-    if not competitor_sec:
-        competitor_sec = parse_section_content("COMPETITOR ACTIVITY", raw_synthesis_text, valid_ids, limitations)
-
-    recent_sec = parse_section_content("RECENT DEVELOPMENTS", raw_synthesis_text, valid_ids, limitations)
-    if not recent_sec and has_news_evidence:
-        recent_sec = parse_section_content("LATEST NEWS", raw_synthesis_text, valid_ids, limitations)
+    research_sec = parse_section_content(
+        blocks, ("KEY RESEARCH DEVELOPMENT", "RESEARCH DEVELOPMENT", "RESEARCH SIGNAL"), valid_ids, limitations
+    )
+    competitor_sec = parse_section_content(
+        blocks, ("COMPETITOR", "INDUSTRY ACTIVITY"), valid_ids, limitations
+    )
+    recent_sec = parse_section_content(
+        blocks, ("RECENT DEVELOPMENT", "LATEST NEWS"), valid_ids, limitations
+    )
 
     patents_sec = None
     if has_patents and has_patent_evidence:
-        patents_sec = parse_section_content("PATENT SIGNALS", raw_synthesis_text, valid_ids, limitations)
+        patents_sec = parse_section_content(blocks, ("PATENT",), valid_ids, limitations)
 
-    why_matters = parse_section_content("WHY THIS MATTERS", raw_synthesis_text, valid_ids, limitations)
-    if not why_matters:
-        why_matters = parse_section_content("STRATEGIC IMPLICATIONS", raw_synthesis_text, valid_ids, limitations)
+    why_matters = parse_section_content(
+        blocks, ("WHY THIS MATTERS", "WHY IT MATTERS", "STRATEGIC IMPLICATION"), valid_ids, limitations
+    )
 
     sections = ReportSections(
         research=research_sec,
@@ -201,27 +288,22 @@ def assemble_report(
         why_it_matters=why_matters,
     )
 
-    # 5. Extract Next Actions
+    # 6. Extract Next Actions — never substituted with canned advice
     next_actions: list[str] = []
-    actions_match = re.search(
-        r"(?:###\s*|\*\*|#\s*)?(?:RECOMMENDED NEXT ACTIONS|NEXT ACTIONS)[:\s]*\n(.*?)(?=(?:###\s*|\*\*|#\s*[A-Z]|\Z))",
-        raw_synthesis_text,
-        re.IGNORECASE | re.DOTALL,
-    )
-    if actions_match:
-        raw_actions = [a.strip() for a in re.split(r"\n+(?:[-*•]|\d+\.)\s+", actions_match.group(1).strip()) if a.strip()]
-        for act in raw_actions:
+    actions_body = find_block(blocks, "RECOMMENDED NEXT ACTION", "NEXT ACTION", "RECOMMENDED ACTION")
+    if actions_body:
+        for act in split_bullets(actions_body):
             cleaned_act, _ = extract_and_validate_citations(act, valid_ids, limitations)
-            if cleaned_act and len(cleaned_act) > 10:
+            cleaned_act = _EMPHASIS_RE.sub("", cleaned_act).strip()
+            if len(cleaned_act) > 10:
                 next_actions.append(cleaned_act)
 
     if not next_actions:
-        next_actions = [
-            f"Track upcoming announcements and patent filings for {target}",
-            f"Deep-dive into verified scientific literature regarding key technical capabilities",
-        ]
+        limitations.append(
+            "The agent did not produce a parsable set of recommended next actions for this run."
+        )
 
-    # 6. Build Coverage summary
+    # 7. Build Coverage summary
     coverage: list[str] = []
     tool_counts: dict[str, int] = {}
     for ev in evidence_list:
@@ -231,7 +313,9 @@ def assemble_report(
         coverage.append(f"{tool_name}: {count} verified sources gathered")
 
     if not has_patents:
-        limitations.append("Patent search was unconfigured (EPO OPS credentials not provided)")
+        limitations.append("Patent search was unavailable for this run (no patent provider active)")
+    elif not has_patent_evidence:
+        limitations.append("Patent search was available but the agent gathered no patent evidence for this target")
 
     return Report(
         target=target,

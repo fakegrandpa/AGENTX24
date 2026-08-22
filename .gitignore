@@ -58,6 +58,11 @@ logs/
 *.sqlite3
 *.db
 
+# --- Submission Archives (generated) ---
+*.zip
+*.tar
+*.tar.gz
+
 # --- Operating System & Editor Metadata ---
 .DS_Store
 .DS_Store?

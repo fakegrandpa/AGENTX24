@@ -47,10 +47,28 @@ def get_client() -> genai.Client | None:
     return genai.Client(api_key=GEMINI_API_KEY)
 
 
-def resolve_model() -> tuple[str, bool, str]:
-    """Preflight check to resolve model name.
+# Model resolution is cached: the preflight costs a ListModels round trip, and
+# without caching it ran on every agent turn and every health check, burning
+# free-tier quota and adding latency to each reasoning step.
+_MODEL_CACHE: tuple[str, bool, str] | None = None
+
+
+def resolve_model(force_refresh: bool = False) -> tuple[str, bool, str]:
+    """Preflight check to resolve model name (cached per process).
     Returns: (resolved_model_name, is_ready, status_message)
     """
+    global _MODEL_CACHE
+    if _MODEL_CACHE is not None and not force_refresh:
+        return _MODEL_CACHE
+
+    result = _resolve_model_uncached()
+    # Only cache successful resolutions so a later key/network fix is picked up.
+    if result[1]:
+        _MODEL_CACHE = result
+    return result
+
+
+def _resolve_model_uncached() -> tuple[str, bool, str]:
     if not GEMINI_API_KEY:
         return ("unconfigured", False, "GEMINI_API_KEY is not set in environment or .env")
 
@@ -60,7 +78,7 @@ def resolve_model() -> tuple[str, bool, str]:
 
     target_model = GEMINI_MODEL
     try:
-        # Check available models
+        # Check available models (single listing pass)
         available_models = []
         for m in client.models.list():
             name = getattr(m, "name", "")
@@ -68,7 +86,7 @@ def resolve_model() -> tuple[str, bool, str]:
             clean_name = name.replace("models/", "")
             available_models.append(clean_name)
 
-        if target_model in available_models or f"models/{target_model}" in [getattr(m, "name", "") for m in client.models.list()]:
+        if target_model in available_models:
             return (target_model, True, f"Model '{target_model}' verified and active")
 
         # If exact match not in list, check for matching flash-lite model first

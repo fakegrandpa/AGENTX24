@@ -73,13 +73,20 @@ def search_ddgs(query: str, limit: int = 8) -> list[dict[str, Any]]:
 def search_wikipedia_api(query: str, limit: int = 5) -> list[dict[str, Any]]:
     """Fallback web search using Wikipedia Search API."""
     clean_query = query.strip()
-    url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={clean_query}&format=json&srlimit={limit}"
+    url = "https://en.wikipedia.org/w/api.php"
+    params = {
+        "action": "query",
+        "list": "search",
+        "srsearch": clean_query,
+        "format": "json",
+        "srlimit": limit,
+    }
     headers = {
         "User-Agent": "AgentX24App/1.0 (contact@agentx24.internal)",
     }
 
     with httpx.Client(timeout=TOOL_TIMEOUT) as client:
-        resp = client.get(url, headers=headers)
+        resp = client.get(url, params=params, headers=headers)
         resp.raise_for_status()
         data = resp.json()
 

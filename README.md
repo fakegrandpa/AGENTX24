@@ -29,6 +29,7 @@ python -m app.config
 python -m app.tools.news "NVIDIA"
 python -m app.tools.research "solid state battery"
 python -m app.tools.web "NVIDIA Blackwell"
+python -m app.tools.patents "solid state battery electrolyte"
 ```
 
 ### 3. Launch Web Dashboard
@@ -48,7 +49,7 @@ python -m app.agent "NVIDIA"
 ## 🎯 Core Flow Demo (90 Seconds)
 
 1. Open the dashboard at `http://127.0.0.1:8000/`.
-2. Notice the clean arrival interface displaying live active tools (`news_search`, `research_search`, `web_search`).
+2. Notice the clean arrival interface displaying live active tools (`news_search`, `research_search`, `web_search`, `patent_search`).
 3. Click a suggested target (e.g. `NVIDIA` or `Solid-State Battery Degradation`) or type a custom company/topic, then press **Enter**.
 4. Watch the autonomous investigation stream in real time:
    - **Activity Timeline**: Dynamic tool selection with pulsing active phase and concrete query detail lines.
@@ -75,7 +76,7 @@ d:\AGENTX24\
       news.py       -> Google News RSS search (with NewsData.io support)
       research.py   -> OpenAlex & arXiv Atom search (with Semantic Scholar support)
       web.py        -> DuckDuckGo (ddgs) & Wikipedia Search API
-      patents.py    -> EPO OPS adapter (modular & inactive when unconfigured)
+      patents.py    -> Patent search: Google Patents web-indexed records (no key), EPO OPS preferred when configured
     agent.py        -> Autonomous ReAct loop, budgets, tool validation, and CLI entry point
     report.py       -> Citation validation, corroboration metrics, and anti-fabrication
     store.py        -> In-memory run store and SSE broadcast queues

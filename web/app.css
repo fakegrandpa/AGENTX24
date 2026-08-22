@@ -351,6 +351,15 @@ body {
   background-color: var(--semantic-success-dot);
 }
 
+.timeline-item.warn .phase-dot,
+.timeline-item.warn.done .phase-dot {
+  background-color: var(--semantic-warning-border);
+}
+
+.timeline-item.warn .phase-label {
+  color: var(--semantic-warning-text);
+}
+
 .timeline-content {
   flex: 1;
 }

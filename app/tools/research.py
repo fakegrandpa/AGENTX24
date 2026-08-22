@@ -1,11 +1,14 @@
 import re
 import sys
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 import httpx
 
 from app.config import SEMANTIC_SCHOLAR_API_KEY, TOOL_RETRIES, TOOL_TIMEOUT
+
+# Recency window for the first OpenAlex attempt (emerging research, not classics)
+RECENT_WINDOW_DAYS = 1095  # ~3 years
 
 # In-process cache (5-min TTL)
 _RESEARCH_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
@@ -60,19 +63,35 @@ def _reconstruct_openalex_abstract(inverted_index: dict[str, list[int]] | None) 
 
 
 def search_openalex(query: str, limit: int = 8) -> list[dict[str, Any]]:
-    """Primary research search via OpenAlex REST API."""
+    """Primary research search via OpenAlex REST API.
+
+    Biased toward recent work first: a pure relevance sort returns the classic
+    highly-cited papers, which is the wrong answer for "what research is emerging".
+    Falls back to the unfiltered relevance search when the recent window is empty.
+    """
     clean_query = query.strip()
-    url = f"https://api.openalex.org/works?search={clean_query}&per-page={limit}&sort=relevance_score:desc"
+    url = "https://api.openalex.org/works"
     headers = {
         "User-Agent": "AgentX24-ResearchAgent/1.0 (mailto:research@agentx24.internal)",
     }
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=RECENT_WINDOW_DAYS)).strftime("%Y-%m-%d")
 
-    with httpx.Client(timeout=TOOL_TIMEOUT, follow_redirects=True) as client:
-        resp = client.get(url, headers=headers)
-        resp.raise_for_status()
-        data = resp.json()
+    attempts: list[dict[str, Any]] = [
+        {"search": clean_query, "per-page": limit, "sort": "relevance_score:desc",
+         "filter": f"from_publication_date:{cutoff}"},
+        {"search": clean_query, "per-page": limit, "sort": "relevance_score:desc"},
+    ]
 
-    raw_results = data.get("results", [])
+    raw_results: list[dict[str, Any]] = []
+    for params in attempts:
+        with httpx.Client(timeout=TOOL_TIMEOUT, follow_redirects=True) as client:
+            resp = client.get(url, params=params, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+        raw_results = data.get("results", [])
+        if raw_results:
+            break
+
     results: list[dict[str, Any]] = []
 
     for item in raw_results:
@@ -120,15 +139,22 @@ def search_openalex(query: str, limit: int = 8) -> list[dict[str, Any]]:
 
 
 def search_arxiv(query: str, limit: int = 8) -> list[dict[str, Any]]:
-    """Fallback research search via arXiv Atom API."""
-    clean_query = query.strip().replace(" ", "+")
-    url = f"https://export.arxiv.org/api/query?search_query=all:{clean_query}&start=0&max_results={limit}"
+    """Fallback research search via arXiv Atom API (newest first)."""
+    clean_query = query.strip()
+    url = "https://export.arxiv.org/api/query"
+    params = {
+        "search_query": f"all:{clean_query}",
+        "start": 0,
+        "max_results": limit,
+        "sortBy": "submittedDate",
+        "sortOrder": "descending",
+    }
     headers = {
         "User-Agent": "AgentX24-ResearchAgent/1.0",
     }
 
     with httpx.Client(timeout=TOOL_TIMEOUT, follow_redirects=True) as client:
-        resp = client.get(url, headers=headers)
+        resp = client.get(url, params=params, headers=headers)
         resp.raise_for_status()
 
     root = ET.fromstring(resp.text)
@@ -174,10 +200,15 @@ def search_semantic_scholar(query: str, limit: int = 8) -> list[dict[str, Any]]:
     """Optional Semantic Scholar search if API key is provided."""
     if not SEMANTIC_SCHOLAR_API_KEY:
         return []
-    url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={query}&limit={limit}&fields=title,authors,year,publicationDate,abstract,url,citationCount,venue"
+    url = "https://api.semanticscholar.org/graph/v1/paper/search"
+    params = {
+        "query": query,
+        "limit": limit,
+        "fields": "title,authors,year,publicationDate,abstract,url,citationCount,venue",
+    }
     headers = {"x-api-key": SEMANTIC_SCHOLAR_API_KEY}
     with httpx.Client(timeout=TOOL_TIMEOUT) as client:
-        resp = client.get(url, headers=headers)
+        resp = client.get(url, params=params, headers=headers)
         resp.raise_for_status()
         data = resp.json()
         results = []

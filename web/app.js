@@ -185,16 +185,18 @@ function connectStream(runId, targetQuery) {
 
 function handleTelemetryEvent(ev, runId) {
   const timeline = document.getElementById("timeline-list");
-  
+
   // Mark previous items as done
   document.querySelectorAll(".timeline-item.active").forEach((el) => {
     el.classList.remove("active");
     el.classList.add("done");
   });
 
+  const isProblem = ev.kind === "error" || ev.phase === "Error encountered" || ev.phase === "Source unavailable";
+
   // Create new timeline item
   const item = document.createElement("div");
-  item.className = "timeline-item active";
+  item.className = isProblem ? "timeline-item active warn" : "timeline-item active";
 
   const dot = document.createElement("div");
   dot.className = "phase-dot";
@@ -229,10 +231,8 @@ function handleTelemetryEvent(ev, runId) {
     fetchEvidenceUpdates(runId);
   }
 
-  if (ev.phase === "Error encountered" || ev.kind === "error") {
-    stopInvestigation();
-    showError(ev.text, ev.detail);
-  }
+  // A recoverable problem stays in the timeline. Whether the run actually failed
+  // is decided from the final run status, so partial evidence is never discarded.
 }
 
 async function fetchEvidenceUpdates(runId) {
