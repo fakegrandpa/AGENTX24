@@ -446,3 +446,46 @@ Blunt list. Do not start any of these in Stage 0, even if they seem quick:
 ---
 
 ## Stage Outcome
+
+**Stage 0: MVP Implementation Complete (GREEN)**
+
+### 1. What was actually built
+- **Core Architecture & Models (`app/models.py`, `app/config.py`)**: Defined canonical schemas for `Evidence`, `Signal`, `Report`, `Run`, `TelemetryEvent`, and `PhaseEnum`. Configured budgets (8 iterations, 12 tool calls, 120s wall clock, 15s tool timeout).
+- **Gemini LLM Adapter (`app/llm.py`)**: Preflight model resolver, function calling converter, retries, and strict isolation preventing internal thought/reasoning leaks.
+- **Three Working Information Sources (`app/tools/`)**:
+  - `news_search` (`app/tools/news.py`): Google News RSS parser with `pubDate` and `days_old` calculations; NewsData.io support if key provided.
+  - `research_search` (`app/tools/research.py`): OpenAlex API primary with arXiv Atom fallback; Semantic Scholar support if key provided.
+  - `web_search` (`app/tools/web.py`): DuckDuckGo (`ddgs`) primary with Wikipedia Search API fallback.
+  - `patent_search` (`app/tools/patents.py`): EPO OPS adapter present and gated (inactive without credentials, avoiding broken tool traps).
+- **Autonomous Agent Loop & CLI (`app/agent.py`)**: Trigger-agnostic ReAct controller with tool validation, evidence store, forced final synthesis on budget limit, and standalone CLI runner.
+- **Anti-Fabrication & Prioritization (`app/report.py`)**: Corroboration score calculation, citation validation (stripping unverified `[En]` markers), prioritized signal grouping (`high`, `important`, `emerging`), and adaptive section suppression.
+- **FastAPI Backend & SSE (`app/main.py`, `app/store.py`)**: In-memory run store, live SSE broadcasting (`/api/stream/{run_id}`), health status (`/api/health`), and static dashboard serving.
+- **Product-Grade Judge Dashboard (`web/index.html`, `web/app.css`, `web/app.js`)**:
+  - Screen 1: Clean arrival state with single input, suggested presets, and active source indicator.
+  - Screen 2: Real-time investigation view with ticking timer, pulsing active phase dot, ~12-entry capped timeline, and live streaming evidence feed.
+  - Screen 3: Prioritized intelligence briefing with interactive `[En]` citation chips that jump to verified sources, adaptive sections, and coverage notes.
+  - Screen 4: Calm error state with clear troubleshooting guidance.
+
+### 2. Verified Run Commands
+```powershell
+# Diagnostics and tool verification
+python -m app.config
+python -m app.tools.news "NVIDIA"
+python -m app.tools.research "solid state battery"
+python -m app.tools.web "NVIDIA"
+
+# Headless agent execution
+python -m app.agent "NVIDIA"
+
+# Web dashboard
+python -m uvicorn app.main:app --port 8000
+# Accessible at http://127.0.0.1:8000/
+```
+
+### 3. Deviations from Planned Architecture
+- **None**: Built strictly according to the frozen `BUILD1.md` specification. All MUST requirements and target stack choices were preserved.
+
+### 4. Deferred Items & Known Limitations
+- **Patent Search**: Inactive in Stage 0 by design (awaits valid EPO OPS credentials; honest limitation note rendered in coverage block).
+- **API Key Dependency**: Real model turns require `GEMINI_API_KEY` in `.env`. Gracefully handled with preflight error telemetry and calm troubleshooting card when unconfigured.
+- **Persistence**: In-memory store only (`_RUNS` dict in `app/store.py`), adhering to MVP simplicity.

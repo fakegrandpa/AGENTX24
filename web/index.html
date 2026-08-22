@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AGENTX24 — Autonomous Research & Competitor Intelligence Agent</title>
+  <meta name="description" content="Autonomous AI Agent for real-time competitor tracking, academic literature gathering, and prioritized intelligence synthesis.">
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header Landmark -->
+    <header class="app-header">
+      <div class="brand-tag">Autonomous Intelligence</div>
+      <h1 class="app-title">Research & Competitor Tracking Agent</h1>
+      <p class="app-subtitle">
+        Enter a target company, competitor, or technology area. Watch Gemini autonomously reason, select tools, gather evidence, and synthesize actionable intelligence.
+      </p>
+    </header>
+
+    <!-- Main Content Landmark -->
+    <main id="main-content">
+      <!-- Screen 1: Input & Empty State -->
+      <section id="screen-arrival" class="card" aria-label="Investigation Setup">
+        <form id="investigate-form" class="search-form">
+          <label for="target-input" class="input-label">Target Entity or Research Topic</label>
+          <div class="input-group">
+            <input 
+              type="text" 
+              id="target-input" 
+              class="search-input" 
+              placeholder="e.g. NVIDIA, Solid-State Battery Degradation, OpenAI..." 
+              required
+              autocomplete="off"
+              autofocus
+            >
+            <button type="submit" id="btn-submit" class="btn-primary">Investigate Target</button>
+          </div>
+          
+          <div class="demo-presets">
+            <span class="preset-label">Suggested Targets:</span>
+            <button type="button" class="preset-btn" data-query="NVIDIA">NVIDIA</button>
+            <button type="button" class="preset-btn" data-query="Solid-State Battery Degradation">Solid-State Battery Degradation</button>
+            <button type="button" class="preset-btn" data-query="CRISPR Base Editing Off-Target Safety">CRISPR Base Editing</button>
+          </div>
+
+          <div class="system-status-bar">
+            <span id="health-status-text">Checking system status...</span>
+            <span id="tools-status-text">Active Sources: News, Research (OpenAlex/arXiv), Web</span>
+          </div>
+
+          <div class="workflow-preview">
+            <span>1. Dynamic Tool Selection</span>
+            <span>&rarr;</span>
+            <span>2. Real-time Evidence Gathering</span>
+            <span>&rarr;</span>
+            <span>3. Prioritized Signals &amp; Report</span>
+          </div>
+        </form>
+      </section>
+
+      <!-- Screen 2: Investigating View (Timeline & Live Evidence) -->
+      <section id="screen-investigating" class="card" style="display: none;" aria-label="Autonomous Investigation in Progress">
+        <div class="investigation-header">
+          <div>
+            <span class="preset-label">Current Target:</span>
+            <span id="live-target-name" class="target-badge">Target Name</span>
+          </div>
+          <div class="live-metrics">
+            <span id="live-timer" class="timer-tag">00:00</span>
+            <button type="button" id="btn-new-investigation" class="btn-secondary">New Search</button>
+          </div>
+        </div>
+
+        <div class="investigation-grid">
+          <!-- Left: Activity Timeline -->
+          <div class="timeline-panel">
+            <div class="panel-title">Autonomous Activity Timeline</div>
+            <div id="timeline-list" class="timeline-list" aria-live="polite">
+              <!-- Dynamically populated timeline entries -->
+            </div>
+          </div>
+
+          <!-- Right: Live Evidence Feed -->
+          <div class="evidence-panel">
+            <div class="panel-title">
+              Gathered Evidence (<span id="evidence-count">0</span>)
+            </div>
+            <div id="evidence-list" class="evidence-list">
+              <!-- Dynamically populated evidence cards -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 3: Prioritized Intelligence Report -->
+      <section id="screen-report" class="card" style="display: none;" aria-label="Synthesized Intelligence Report">
+        <div class="investigation-header">
+          <div>
+            <span class="preset-label">Intelligence Briefing for</span>
+            <h2 id="report-target-name" class="target-badge">Target</h2>
+          </div>
+          <div class="live-metrics">
+            <span id="report-metrics-badge" class="timer-tag">0 steps · 0 sources</span>
+            <button type="button" id="btn-restart" class="btn-secondary">New Investigation</button>
+          </div>
+        </div>
+
+        <!-- Investigation Summary -->
+        <div class="report-section">
+          <div class="panel-title">Executive Investigation Summary</div>
+          <div id="report-summary" class="report-summary-box">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+
+        <!-- Prioritized Signals -->
+        <div class="report-section">
+          <div class="panel-title">Prioritized Signals</div>
+          <div id="report-signals" class="signals-list">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+
+        <!-- Adaptive Report Sections -->
+        <div id="report-adaptive-sections">
+          <!-- Key Research, Competitor Activity, Recent Developments, etc. -->
+        </div>
+
+        <!-- Why This Matters -->
+        <div id="section-why-it-matters" class="report-section" style="display: none;">
+          <h3 class="section-heading">Why This Matters</h3>
+          <div id="report-why-it-matters-content" class="signal-detail"></div>
+        </div>
+
+        <!-- Recommended Next Actions -->
+        <div id="section-next-actions" class="report-section" style="display: none;">
+          <h3 class="section-heading">Recommended Next Actions</h3>
+          <ol id="report-next-actions-list" class="actions-list"></ol>
+        </div>
+
+        <!-- Coverage & Limitations Area -->
+        <div id="report-limitations-box" class="limitations-box" style="display: none;">
+          <div class="limitations-title">Coverage &amp; Limitations</div>
+          <ul id="report-limitations-list"></ul>
+        </div>
+
+        <!-- Sources Verification Reference List -->
+        <div class="report-section">
+          <h3 class="section-heading">Verified Sources &amp; Evidence</h3>
+          <div id="report-sources-list" class="sources-list">
+            <!-- Real URLs rendered from evidence store -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 4: Error State -->
+      <section id="screen-error" class="card" style="display: none;" aria-label="Investigation Error">
+        <div class="error-card">
+          <h2 class="error-title">Investigation Error</h2>
+          <p id="error-message" class="error-detail">An error occurred during the investigation.</p>
+          <div id="error-troubleshooting" class="error-detail" style="font-size: 14px; opacity: 0.9;"></div>
+          <button type="button" id="btn-error-retry" class="btn-primary">Try Another Investigation</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
