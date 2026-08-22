@@ -144,8 +144,6 @@ D:\AGENTX24\
 │   └── index.html            # Semantic judge dashboard interface
 ├── .env.example              # Safe configuration template with placeholder keys
 ├── .gitignore                # Stack-agnostic gitignore protecting secrets & caches
-├── AGENTS.md                 # Agent Operating Charter and protocols P1-P9
-├── BUILD1.md                 # Frozen Hour 0 Architecture and Stage Outcome record
 ├── README.md                 # Complete project and run documentation
 └── requirements.txt          # Pinned dependency manifest
 ```

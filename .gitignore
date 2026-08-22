@@ -80,3 +80,11 @@ desktop.ini
 *.swp
 *.swo
 *~
+
+# --- Internal Hackathon Workflow & Planning Files ---
+.agents/
+AGENTS.md
+BUILD*.md
+HACKATHON_PROMPTS.txt
+MY_HACKATHON_GUIDE.md
+opencode.json
